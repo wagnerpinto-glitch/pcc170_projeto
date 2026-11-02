@@ -1,0 +1,6 @@
+,coef,p
+Intercept,0.0884,0.0
+A,-0.0093,0.2316
+Anxiety_Level_During_Exams,-0.005,0.0016
+A:Anxiety_Level_During_Exams,-0.0064,0.0001
+Traditional_Study_Hours,0.014,0.0

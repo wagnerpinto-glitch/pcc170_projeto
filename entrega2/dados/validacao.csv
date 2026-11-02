@@ -1,0 +1,7 @@
+checagem,ok,detalhe
+"Shapiro dos resíduos (p>0,05)",True,p=0.115
+"Levene dados brutos (p>0,05) – tratado por HC3",False,p=2.6e-05
+"Levene réplicas bootstrap (p>0,05)",False,p=0.044
+"Estabilidade entre seeds (DP<0,01)",True,máx DP=0.0056
+Concordância IC bootstrap × HC3 (sem 'fraco'),True,-
+"Pre_GPA balanceado (ANOVA p>0,05)",True,ver balanceamento

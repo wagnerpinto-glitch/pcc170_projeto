@@ -1,0 +1,648 @@
+# %% [markdown]
+# # PCC170 – Entrega 2: Fatorial 2³ r com Bootstrap (STEM + Junior)
+# Fatores: **A** uso de IA (Passivo +1 / Ativo −1), **B** ansiedade (>Q2 = +1 / ≤Q2 = −1),
+# **C** horas de estudo (>Q2 = +1 / ≤Q2 = −1). Resposta: ΔGPA = Post − Pre.
+# Regra principal: corte pela mediana (Q2); a regra de extremos (≥Q3 / <Q1) é mantida como sensibilidade.
+
+# %%
+import os, re, unicodedata, warnings
+import numpy as np, pandas as pd
+import matplotlib.pyplot as plt, seaborn as sns
+import statsmodels.api as sm, statsmodels.formula.api as smf
+from scipy import stats
+warnings.filterwarnings("ignore")
+sns.set_theme(style="whitegrid")
+
+CSV = "ai_student_impact_dataset.csv"
+if not os.path.exists(CSV):
+    for p in ("../csv/ai_student_impact_dataset.csv", "csv/ai_student_impact_dataset.csv"):
+        if os.path.exists(p):
+            CSV = p
+            break
+OUT_FIG, OUT_DAT = "figuras", "dados"
+os.makedirs(OUT_FIG, exist_ok=True); os.makedirs(OUT_DAT, exist_ok=True)
+
+SEED, R, M, NBOOT = 42, 30, 36, 5000
+REGRA = "mediana"  # "mediana" (≤Q2 baixo / >Q2 alto) ou "quartis" (<Q1 baixo / ≥Q3 alto, descarta o meio)
+PASSIVO = ["Copywriting/Drafting", "Direct_Answer_Generation"]
+CELLS = [(a, b, c) for c in (-1, 1) for b in (-1, 1) for a in (-1, 1)]  # ordem de Yates
+EFFECTS = {"A": lambda k: k[0], "B": lambda k: k[1], "C": lambda k: k[2],
+           "AB": lambda k: k[0]*k[1], "AC": lambda k: k[0]*k[2],
+           "BC": lambda k: k[1]*k[2], "ABC": lambda k: k[0]*k[1]*k[2]}
+
+OUT_SEP = f"{OUT_FIG}/separados"; os.makedirs(OUT_SEP, exist_ok=True)
+
+def slug(txt):
+    txt = unicodedata.normalize("NFKD", txt).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-zA-Z0-9]+", "_", txt).strip("_").lower()[:50]
+
+# Rótulos/legendas completos por figura e posição (só onde o gráfico não os traz): {nome: {i: (xlabel, ylabel, legenda)}}
+_ROT = {
+    "01_distribuicoes_quartis": {1: ("ΔGPA = Post − Pre", "Nº de alunos", "Histograma + KDE do ΔGPA")},
+    "02_n_por_celula": {1: ("C (estudo: −1 baixo / +1 alto)", "A, B (IA, ansiedade)", None)},
+    "04_diagnostico_residuos": {1: ("Quantis teóricos (Normal)", "Quantis dos resíduos", "Resíduos × reta 45°"),
+                                2: ("Valor ajustado (Y)", "Resíduo", "Resíduo = 0 (linha vermelha)"),
+                                3: ("Resíduo", "Nº de observações", "Histograma + KDE dos resíduos")},
+    "05_qq_antes_depois": {1: ("Quantis teóricos (Normal)", "Quantis amostrais (padronizados)", "ΔGPA bruto × reta 45°"),
+                           2: ("Quantis teóricos (Normal)", "Quantis amostrais (padronizados)", "Médias bootstrap × reta 45°")},
+    "06_hist_bootstrap_por_celula": {i: ("Y = média de ΔGPA da réplica", "Nº de réplicas", f"Médias bootstrap do tratamento {i} (r={R} réplicas)") for i in range(1, 9)},
+    "08_efeitos_principais": {1: ("A: modo de uso (−1 ativo / +1 passivo)", "ΔGPA médio", "Média ± IC95%"),
+                              2: ("B: ansiedade (−1 baixa / +1 alta)", "ΔGPA médio", "Média ± IC95%"),
+                              3: ("C: horas de estudo (−1 baixas / +1 altas)", "ΔGPA médio", "Média ± IC95%")},
+    "10_pareto_efeitos": {1: ("|t| = |efeito| / erro-padrão HC3", "Termo do modelo", ("#27ae60:Efeito positivo", "#c0392b:Efeito negativo"))},
+    "12_forest_plot_efeitos": {1: ("Efeito em ΔGPA", "Termo do modelo", ("#c0392b:IC95% exclui 0", "gray:IC95% inclui 0"))},
+    "13_pct_variancia": {1: ("Termo do modelo", "% da variância (SS/SST)", "Contribuição na SQ total (modelo bruto, tipo III)")},
+    "14_sensibilidade": {1: ("Termo do modelo", "Efeito em ΔGPA", None)},
+    "22_permutacao_nulo": {i: ("Efeito sob permutação", "Nº de permutações", None) for i in (1, 2, 3)},
+    "19a_quadro_combinacoes_teste": {1: ("", "", ("#d5f5e3:Nível +1 (alto/passivo)", "#fadbd8:Nível −1 (baixo/ativo)"))},
+    "19b_matriz_sinais_contrastes": {1: ("", "", ("#d5f5e3:Sinal +1", "#fadbd8:Sinal −1"))},
+}
+
+def _completar(fig, name):
+    """Garante rótulos dos eixos x/y, números dos eixos e legenda explicativa em cada gráfico."""
+    from matplotlib.patches import Patch
+    axes = [a for a in fig.axes if a.get_label() != "<colorbar>"]
+    for i, a in enumerate(axes, 1):
+        xl, yl, lg = _ROT.get(name, {}).get(i, (None, None, None))
+        if xl and not a.get_xlabel().strip(): a.set_xlabel(xl)
+        if xl and a.get_xlabel() in ("None",): a.set_xlabel(xl)
+        if yl and (not a.get_ylabel().strip() or a.get_ylabel() in ("Count",)): a.set_ylabel(yl)
+        if xl and a.get_xlabel() in ("Y", "Delta_GPA", "Count"): a.set_xlabel(xl)
+        if a.axison:
+            a.tick_params(labelbottom=True, labelleft=True); a.xaxis.label.set_visible(True); a.yaxis.label.set_visible(True)
+            for l in a.get_xticklabels() + a.get_yticklabels(): l.set_visible(True)
+        if lg is None or (a.get_legend() is not None and not isinstance(lg, tuple)): continue
+        if isinstance(lg, tuple):
+            h = [Patch(facecolor=s.split(":")[0], edgecolor="k", label=s.split(":", 1)[1]) for s in lg]
+            a.legend(handles=h, loc="lower right" if a.axison else "lower center", ncol=1 if a.axison else 2, fontsize=8, frameon=True)
+        else:
+            hs, ls = a.get_legend_handles_labels()
+            h = hs + [Patch(facecolor="#bbbbbb", edgecolor="k", label=lg)] if hs else [Patch(facecolor="#bbbbbb", edgecolor="k", label=lg)]
+            a.legend(handles=h, loc="best", fontsize=8, frameon=True)
+    plt.tight_layout()
+    if len({round(a.get_position().y0, 2) for a in axes}) > 1: fig.subplots_adjust(hspace=0.75)
+    _ancorar(fig)
+
+def _ancorar(fig):
+    axes = [a for a in fig.axes if a.get_label() != "<colorbar>"]
+    fig.canvas.draw(); rend = fig.canvas.get_renderer()
+    for a in axes:
+        lg_ = a.get_legend()
+        if lg_ is not None and a.axison:
+            # ancora a legenda logo abaixo do rótulo do eixo x (e dos números), fora da área de dados
+            lg_.set_visible(False); inf = a.get_tightbbox(rend); lg_.set_visible(True)
+            base = a.get_window_extent(rend); y0 = (inf.y0 - base.y0) / base.height
+            n_ = len(lg_.get_texts()); lg_.set_loc("upper center"); lg_.set_bbox_to_anchor((0.5, y0 - 0.04)); lg_.set_ncols(1 if n_ <= 3 else 2); lg_.set_frame_on(True)
+            for tx in lg_.get_texts(): tx.set_fontsize(8)
+
+def save(name):
+    """Salva a figura completa e cada gráfico (eixo) em arquivo próprio em figuras/separados/."""
+    fig = plt.gcf(); _completar(fig, name); fig.savefig(f"{OUT_FIG}/{name}.png", dpi=200, bbox_inches="tight")
+    axes = [a for a in fig.axes if a.get_label() != "<colorbar>"]
+    if len(axes) > 1:
+        rend = fig.canvas.get_renderer()
+        for i, a in enumerate(axes, 1):
+            outros = [b.get_legend() for b in axes if b is not a and b.get_legend() is not None]
+            for l_ in outros: l_.set_visible(False)
+            box = a.get_tightbbox(rend).transformed(fig.dpi_scale_trans.inverted()).padded(.08)
+            t = a.get_title() or a.get_xlabel() or ""
+            fig.savefig(f"{OUT_SEP}/{name}_{i}_{slug(t)}.png".replace("_.png", ".png"), dpi=200, bbox_inches=box)
+            for l_ in outros: l_.set_visible(True)
+    plt.show()
+
+# %% [markdown]
+# ## 1. Dados: ΔGPA, recorte STEM + Junior, quartis e níveis ±1
+
+# %%
+df = pd.read_csv(CSV)
+df["Delta_GPA"] = df["Post_Semester_GPA"] - df["Pre_Semester_GPA"]
+df["A"] = np.where(df["Primary_Use_Case"].isin(PASSIVO), 1, -1)
+s = df[(df.Major_Category == "STEM") & (df.Year_of_Study == "Junior")].copy()
+print(f"Dataset: {len(df)} | STEM+Junior: {len(s)}")
+
+an, hr = s["Anxiety_Level_During_Exams"], s["Traditional_Study_Hours"]
+qa1, qa3 = an.quantile(.25), an.quantile(.75)
+qh1, qh3 = hr.quantile(.25), hr.quantile(.75)
+print(f"Ansiedade Q1={qa1} Q3={qa3} | Horas Q1={qh1:.2f} Q3={qh3:.3f}")
+
+qa2, qh2 = an.median(), hr.median()
+print(f"Medianas (Q2): ansiedade={qa2} (≤Q2: {(an <= qa2).mean():.1%}) | horas={qh2:.2f} (≤Q2: {(hr <= qh2).mean():.1%})")
+if REGRA == "mediana":
+    s["B"] = np.where(an > qa2, 1, -1)
+    s["C"] = np.where(hr > qh2, 1, -1)
+else:
+    s["B"] = np.where(an >= qa3, 1, np.where(an < qa1, -1, 0))
+    s["C"] = np.where(hr >= qh3, 1, np.where(hr < qh1, -1, 0))
+fat = s[(s.B != 0) & (s.C != 0)].copy()
+fat["celula"] = [CELLS.index(k) + 1 for k in zip(fat.A, fat.B, fat.C)]
+fat.to_csv(f"{OUT_DAT}/df_factorial.csv", index=False)
+print(f"Alunos analisados (regra={REGRA}): {len(fat)} ({len(fat)/len(s):.1%} do recorte)")
+NF = len(fat)
+LB, LC = ("≤Q2", ">Q2") if REGRA == "mediana" else ("<Q1", "≥Q3")
+
+tab = fat.groupby(["celula", "A", "B", "C"]).Delta_GPA.agg(["count", "mean", "std"]).round(3)
+print(tab)
+G = {k: v["Delta_GPA"].values for k, v in fat.groupby(["A", "B", "C"])}
+assert len(G) == 8 and min(len(v) for v in G.values()) >= max(M, 10)
+
+# %% [markdown]
+# ### Balanceamento de Pre_GPA e descritivas
+
+# %%
+bal = fat.groupby("celula").Pre_Semester_GPA.agg(["mean", "std"]).round(3)
+print(bal)
+print("ANOVA Pre_GPA ~ célula: p =", round(stats.f_oneway(*[g.Pre_Semester_GPA for _, g in fat.groupby("celula")]).pvalue, 4))
+desc = df[["Delta_GPA", "Anxiety_Level_During_Exams", "Traditional_Study_Hours"]].agg(["mean", "std", "min", "max"]).T.round(2)
+desc_s = s[["Delta_GPA", "Anxiety_Level_During_Exams", "Traditional_Study_Hours"]].agg(["mean", "std", "min", "max"]).T.round(2)
+desc.to_csv(f"{OUT_DAT}/descritivas_dataset.csv"); desc_s.to_csv(f"{OUT_DAT}/descritivas_stem_junior.csv")
+print(desc, "\n", desc_s)
+
+# %% [markdown]
+# ## 2. Gráficos exploratórios
+
+# %%
+fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
+sns.histplot(s.Delta_GPA, kde=True, ax=ax[0], color="#2980b9"); ax[0].set_title("ΔGPA (STEM Junior)")
+sns.histplot(an, discrete=True, ax=ax[1], color="#e67e22")
+sns.histplot(hr, kde=True, ax=ax[2], color="#8e44ad")
+if REGRA == "mediana":
+    ax[1].axvline(qa2, color="red", ls="--", label=f"Q2={qa2:g}"); ax[2].axvline(qh2, color="red", ls="--", label=f"Q2={qh2:.2f}")
+    ax[1].set_title("Ansiedade com corte Q2 (≤Q2 baixa | >Q2 alta)"); ax[2].set_title("Horas de estudo com corte Q2")
+else:
+    for q, c in ((qa1, "green"), (qa3, "red")): ax[1].axvline(q, color=c, ls="--", label=f"Q={q:g}")
+    for q, c in ((qh1, "green"), (qh3, "red")): ax[2].axvline(q, color=c, ls="--", label=f"Q={q:.2f}")
+    ax[1].set_title("Ansiedade com Q1/Q3"); ax[2].set_title("Horas de estudo com Q1/Q3")
+ax[1].legend(); ax[2].legend()
+save("01_distribuicoes_quartis")
+
+# %%
+n_tab = fat.groupby(["A", "B", "C"]).size().unstack("C")
+plt.figure(figsize=(6, 4)); sns.heatmap(n_tab, annot=True, fmt="d", cmap="Blues")
+plt.title("n por célula (linhas A,B / colunas C)"); save("02_n_por_celula")
+
+# %%
+fat["rotulo"] = fat.celula.astype(str) + " (" + fat.A.map({-1: "At", 1: "Ps"}) + "," + fat.B.map({-1: "B", 1: "A"}) + "," + fat.C.map({-1: "b", 1: "a"}) + ")"
+plt.figure(figsize=(12, 5)); sns.boxplot(data=fat.sort_values("celula"), x="rotulo", y="Delta_GPA", palette="viridis")
+plt.xticks(rotation=30); plt.xlabel("Célula (IA, Ansiedade, Estudo)"); save("03_boxplot_bruto_por_celula")
+
+# %% [markdown]
+# ### CDF empírica dos dados analisados
+
+# %%
+def ecdf(x):
+    x = np.sort(np.asarray(x)); return x, np.arange(1, len(x) + 1) / len(x)
+
+rot_a = {-1: "Ativo", 1: "Passivo"}
+fig, ax = plt.subplots(1, 3, figsize=(17, 4.8))
+for lvl, g in fat.groupby("A"):
+    ax[0].step(*ecdf(g.Delta_GPA), where="post", label=f"{rot_a[lvl]} (n={len(g)})")
+ax[0].set_xlabel("ΔGPA"); ax[0].set_title(f"CDF do ΔGPA por tipo de uso de IA (n={NF})")
+for lvl, g in fat.groupby("B"):
+    ax[1].step(*ecdf(g.Delta_GPA), where="post", label=f"Ansiedade {'alta' if lvl == 1 else 'baixa'} (n={len(g)})")
+ax[1].set_xlabel("ΔGPA"); ax[1].set_title("CDF do ΔGPA por nível de ansiedade")
+for lvl, g in fat.groupby("C"):
+    ax[2].step(*ecdf(g.Delta_GPA), where="post", label=f"Estudo {'alto' if lvl == 1 else 'baixo'} (n={len(g)})")
+ax[2].set_xlabel("ΔGPA"); ax[2].set_title("CDF do ΔGPA por nível de horas de estudo")
+for a_ in ax: a_.set_ylabel("F(x) = P(ΔGPA ≤ x)"); a_.legend(loc="lower right")
+save("15_cdf_fatores")
+
+# %%
+fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+for i, k in enumerate(CELLS):
+    lab = f"{i+1}: {rot_a[k[0]][:2]}, Ans{'+' if k[1] == 1 else '-'}, Est{'+' if k[2] == 1 else '-'} (n={len(G[k])})"
+    ax[0].step(*ecdf(G[k]), where="post", label=lab)
+ax[0].set_title("CDF do ΔGPA bruto por célula 2³"); ax[0].set_xlabel("ΔGPA")
+ax[1].set_title(f"CDF – recorte STEM Junior completo vs. {NF} analisados")
+ax[1].step(*ecdf(s.Delta_GPA), where="post", label=f"STEM Junior (n={len(s)})")
+ex = s[((an >= qa3) | (an < qa1)) & ((hr >= qh3) | (hr < qh1))]
+ax[1].step(*ecdf(ex.Delta_GPA), where="post", linestyle="--", label=f"Extremos Q1/Q3 (n={len(ex)})")
+if REGRA != "mediana": ax[1].step(*ecdf(fat.Delta_GPA), where="post", label=f"Analisados (n={NF})")
+ax[1].set_xlabel("ΔGPA")
+for a_ in ax: a_.set_ylabel("F(x)"); a_.legend(fontsize=8, loc="lower right")
+save("16_cdf_por_celula_e_recorte")
+
+# %%
+fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+for var, nome, qs, a_ in ((an, "Ansiedade", (qa1, qa2, qa3), ax[0]), (hr, "Horas de estudo", (qh1, qh2, qh3), ax[1])):
+    a_.step(*ecdf(var), where="post", color="#2c3e50")
+    if REGRA == "mediana":
+        a_.axvline(qs[1], color="red", ls="--", label=f"Q2={qs[1]:.2f} (F={(var <= qs[1]).mean():.2f})")
+        a_.axhline(.5, color="gray", lw=.6)
+        a_.axvline(qs[0], color="green", ls=":", label=f"Q1={qs[0]:.2f} (ref.)"); a_.axvline(qs[2], color="orange", ls=":", label=f"Q3={qs[2]:.2f} (ref.)")
+    else:
+        a_.axvline(qs[0], color="green", ls="--", label=f"Q1={qs[0]:.2f} (F=0,25)"); a_.axvline(qs[2], color="red", ls="--", label=f"Q3={qs[2]:.2f} (F=0,75)")
+        a_.axhline(.25, color="gray", lw=.6); a_.axhline(.75, color="gray", lw=.6)
+    a_.set_xlabel(nome); a_.set_ylabel("F(x)"); a_.set_title(f"CDF – {nome} (STEM Junior) com cortes"); a_.legend()
+save("17_cdf_ansiedade_horas_quartis")
+
+# %% [markdown]
+# ## 2b. NÚCLEO – Modelo principal: ANOVA 2³ sobre os dados brutos (n alunos, desbalanceado) com erros robustos HC3
+# Os alunos são as unidades experimentais; as "réplicas bootstrap" (seção 3) são apenas ilustrativas, pois reamostram os mesmos alunos (pseudo-replicação).
+
+# %%
+EF_ORDEM = ["A", "B", "C", "AB", "AC", "BC", "ABC"]
+fit_raw = smf.ols("Delta_GPA ~ A*B*C", fat).fit()
+fit_hc3 = smf.ols("Delta_GPA ~ A*B*C", fat).fit(cov_type="HC3")
+_ren = lambda x: x.rename(lambda i: i.replace(":", ""))
+# SS tipo III (codificação ±1): testa exatamente o contraste de efeito estimado, mesmo com n desigual
+aov3 = sm.stats.anova_lm(fit_raw, typ=3).drop("Intercept")
+p_raw = _ren(aov3["PR(>F)"].drop("Residual"))
+hc3 = _ren(sm.stats.anova_lm(fit_hc3, typ=3, robust="hc3")["PR(>F)"].drop("Intercept").drop("Residual"))
+ss_raw = aov3.sum_sq
+pct_raw = _ren((ss_raw / ss_raw.sum() * 100).drop("Residual"))
+print(f"n={len(fat)} | R²={fit_raw.rsquared:.3f} | resíduo = {ss_raw['Residual'] / ss_raw.sum():.1%} do SST")
+print("p (HC3):", hc3.reindex(EF_ORDEM).round(4).to_dict()); print("p (ANOVA bruta clássica):", p_raw.reindex(EF_ORDEM).round(4).to_dict())
+
+# heterocedasticidade: DP por célula e Levene (Brown–Forsythe, centro na mediana) nos dados brutos
+lev_raw = stats.levene(*[v for v in G.values()])
+sd_cel = pd.Series({i + 1: G[k].std(ddof=1) for i, k in enumerate(CELLS)})
+print(f"DP por célula: {sd_cel.round(3).to_dict()}")
+print(f"DP médio passivo={np.mean([G[k].std(ddof=1) for k in CELLS if k[0] == 1]):.3f} | ativo={np.mean([G[k].std(ddof=1) for k in CELLS if k[0] == -1]):.3f}")
+print(f"Levene dados brutos entre células: p={lev_raw.pvalue:.2e}")
+pd.DataFrame({"n": [len(G[k]) for k in CELLS], "dp": sd_cel.values}, index=range(1, 9)).round(4).to_csv(f"{OUT_DAT}/dp_por_celula.csv")
+
+res_raw = fit_raw.resid
+fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
+sm.qqplot(res_raw, line="45", fit=True, ax=ax[0]); ax[0].set_title("QQ dos resíduos (dados brutos, n=%d)" % len(fat))
+ax[1].scatter(fit_raw.fittedvalues, res_raw, alpha=.3); ax[1].axhline(0, color="r"); ax[1].set_title("Resíduos × ajustados (heterocedasticidade)")
+ax[1].set_xlabel("Ajustado (média da célula)"); ax[1].set_ylabel("Resíduo")
+sns.histplot(res_raw, kde=True, ax=ax[2]); ax[2].set_title("Histograma dos resíduos")
+save("04_diagnostico_residuos")
+
+# %% [markdown]
+# ## 3. APÊNDICE (ilustrativo) – Réplicas bootstrap (r × 8 células, m alunos com reposição) + ANOVA 2³
+# Mostra o balanceamento por reamostragem. Os p-valores desta ANOVA são otimistas (pseudo-replicação) e não são critério de decisão.
+
+# %%
+def make_replicas(G, r, m, seed):
+    rng = np.random.default_rng(seed); rows = []
+    for k in CELLS:
+        for j in range(r):
+            idx = rng.integers(0, len(G[k]), m)
+            rows.append(dict(A=k[0], B=k[1], C=k[2], celula=CELLS.index(k) + 1, rep=j + 1,
+                             seed=seed, Y=G[k][idx].mean(), sd_amostra=G[k][idx].std(ddof=1),
+                             distintos=len(set(idx))))
+    return pd.DataFrame(rows)
+
+def effects_from_means(mu):
+    return {n: sum(f(k) * mu[k] for k in CELLS) / 4 for n, f in EFFECTS.items()}
+
+rep = make_replicas(G, R, M, SEED)
+rep.to_csv(f"{OUT_DAT}/replicas.csv", index=False)
+print(rep.shape, "| mín. de alunos distintos por réplica:", rep.distintos.min())
+
+mod = smf.ols("Y ~ A*B*C", rep).fit()
+anova = sm.stats.anova_lm(mod, typ=2)
+anova["pct_var"] = anova.sum_sq / anova.sum_sq.sum() * 100
+anova.to_csv(f"{OUT_DAT}/anova_bootstrap.csv"); print(anova.round(5))
+ef_anova = {n.replace(":", ""): 2 * mod.params[n] for n in mod.params.index if n != "Intercept"}
+
+# %% [markdown]
+# ### Validação das premissas das réplicas (apêndice)
+
+# %%
+res = mod.resid
+sh = stats.shapiro(res); lev = stats.levene(*[g.Y.values for _, g in rep.groupby("celula")])
+# normalidade dos dados brutos x médias bootstrap, célula a célula
+norm_tab = pd.DataFrame({
+    "n": [len(G[k]) for k in CELLS],
+    "skew_bruto": [stats.skew(G[k]) for k in CELLS],
+    "shapiro_p_bruto": [stats.shapiro(G[k]).pvalue for k in CELLS],
+    "skew_boot": [stats.skew(rep[rep.celula == i + 1].Y) for i in range(8)],
+    "shapiro_p_boot": [stats.shapiro(rep[rep.celula == i + 1].Y).pvalue for i in range(8)]}, index=range(1, 9)).round(3)
+norm_tab.to_csv(f"{OUT_DAT}/normalidade_por_celula.csv"); print(norm_tab)
+print(f"Shapiro resíduos: p={sh.pvalue:.3f} ({'OK' if sh.pvalue > .05 else 'FALHOU'})")
+print(f"Levene: p={lev.pvalue:.3f} ({'OK' if lev.pvalue > .05 else 'FALHOU'})")
+
+fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
+sm.qqplot(res, line="45", fit=True, ax=ax[0]); ax[0].set_title("QQ dos resíduos (réplicas bootstrap)")
+ax[1].scatter(mod.fittedvalues, res, alpha=.5); ax[1].axhline(0, color="r"); ax[1].set_title("Resíduos × ajustados")
+ax[1].set_xlabel("Ajustado"); ax[1].set_ylabel("Resíduo")
+sns.histplot(res, kde=True, ax=ax[2]); ax[2].set_title("Histograma dos resíduos")
+save("04b_diagnostico_residuos_replicas")
+
+# %%
+cores = sns.color_palette("tab10", 8)
+fig, ax = plt.subplots(1, 2, figsize=(14, 4.5))
+sm.qqplot(np.concatenate([(G[k] - G[k].mean()) / G[k].std() for k in CELLS]), line="45", ax=ax[0]); ax[0].set_title("QQ – ΔGPA bruto padronizado por célula")
+sm.qqplot(np.concatenate([(g.Y - g.Y.mean()) / g.Y.std() for _, g in rep.groupby("celula")]), line="45", ax=ax[1]); ax[1].set_title("QQ – médias bootstrap padronizadas")
+save("05_qq_antes_depois")
+
+fig, axs = plt.subplots(2, 4, figsize=(18, 10), sharex=True)
+for i, ax_ in enumerate(axs.ravel()):
+    sns.histplot(rep[rep.celula == i + 1].Y, kde=True, ax=ax_, color=cores[i]); ax_.set_title(f"Tratamento {i+1} (A,B,C) = {CELLS[i]}", fontsize=10)
+save("06_hist_bootstrap_por_celula")
+
+# %%
+fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+for i, k in enumerate(CELLS):
+    ax[0].step(*ecdf(rep[rep.celula == i + 1].Y), where="post", label=f"Trat. {i+1}: {rot_a[k[0]]}, Ans {'alta' if k[1] == 1 else 'baixa'}, Estudo {'alto' if k[2] == 1 else 'baixo'}")
+ax[0].set_title("CDF das médias bootstrap (Y) por tratamento (célula do fatorial 2³)"); ax[0].set_xlabel("Y = média de ΔGPA"); ax[0].legend(fontsize=8)
+for i in range(8):
+    x, f = ecdf(rep[rep.celula == i + 1].Y); mu_, sd_ = x.mean(), x.std(ddof=1)
+    ax[1].plot(np.sort((x - mu_) / sd_), f, lw=1, alpha=.7)
+z = np.linspace(-3, 3, 200); ax[1].plot(z, stats.norm.cdf(z), "k--", lw=2, label="Normal(0,1)")
+ax[1].set_title("CDF das médias bootstrap padronizadas × Normal"); ax[1].set_xlabel("z"); ax[1].legend()
+for a_ in ax: a_.set_ylabel("F(x)")
+save("18_cdf_bootstrap")
+
+# %% [markdown]
+# ## Quadros do desenho: matriz de sinais e combinações de teste
+
+# %%
+nomes_a = {-1: "Ativo", 1: "Passivo"}; nomes_b = {-1: f"Baixa ({LB})", 1: f"Alta ({LC})"}; nomes_c = {-1: f"Baixas ({LB})", 1: f"Altas ({LC})"}
+yates = ["(1)", "a", "b", "ab", "c", "ac", "bc", "abc"]
+sinais = pd.DataFrame([{"Ensaio": i + 1, "Yates": yates[i], "I": 1, **{n: f(k) for n, f in EFFECTS.items()}} for i, k in enumerate(CELLS)])
+sinais["Y_média_obs"] = [G[k].mean() for k in CELLS]
+sinais["Y_média_boot"] = [rep[rep.celula == i + 1].Y.mean() for i in range(8)]
+linha = {"Ensaio": "Divisor", "Yates": "", "I": 8, **{n: 4 for n in EFFECTS}}
+sinais_out = pd.concat([sinais, pd.DataFrame([linha])], ignore_index=True)
+ef_obs_q = effects_from_means({k: G[k].mean() for k in CELLS})
+ef_lin = {"Ensaio": "Efeito", "Yates": "", **ef_obs_q}
+sinais_out = pd.concat([sinais_out, pd.DataFrame([ef_lin])], ignore_index=True)
+sinais_out.to_csv(f"{OUT_DAT}/quadro_sinais.csv", index=False); print(sinais_out.round(4).to_string(index=False))
+
+comb = pd.DataFrame([{"Ensaio": i + 1, "Yates": yates[i],
+    "A (IA)": f"{k[0]:+d} {nomes_a[k[0]]}", "B (Ansiedade)": f"{k[1]:+d} {nomes_b[k[1]]}", "C (Estudo)": f"{k[2]:+d} {nomes_c[k[2]]}",
+    "n alunos": len(G[k]), "ΔGPA médio": round(G[k].mean(), 3), "DP": round(G[k].std(ddof=1), 3),
+    "Réplicas (r)": R, "m por réplica": M, "Observações": R} for i, k in enumerate(CELLS)])
+comb.to_csv(f"{OUT_DAT}/quadro_combinacoes.csv", index=False); print(comb.to_string(index=False))
+
+def tabela_fig(df_, titulo, nome, fs, cor_sinais=False):
+    plt.figure(figsize=(13, 4.6)); a_ = plt.gca(); a_.axis("off")
+    tb = a_.table(cellText=df_.astype(str).values, colLabels=df_.columns, loc="center", cellLoc="center")
+    tb.auto_set_font_size(False); tb.set_fontsize(fs); tb.scale(1, 1.6)
+    if cor_sinais:
+        for (r_, c_), cell in tb.get_celld().items():
+            if r_ > 0 and 2 <= c_ <= 9: cell.set_facecolor("#d5f5e3" if cell.get_text().get_text() == "1" else "#fadbd8")
+    a_.set_title(titulo, fontweight="bold"); save(nome)
+
+tabela_fig(comb, "Quadro das combinações de teste (8 tratamentos × r = 30 réplicas)", "19a_quadro_combinacoes_teste", 8)
+sg = sinais[["Ensaio", "Yates", "I", *EFFECTS, "Y_média_obs"]].copy(); sg["Y_média_obs"] = sg["Y_média_obs"].round(3)
+tabela_fig(sg, "Matriz de sinais dos contrastes (efeito = Σ sinal·Y / 4)", "19b_matriz_sinais_contrastes", 9, cor_sinais=True)
+
+# %% [markdown]
+# ## 4. Efeitos, cubo, interações e Pareto
+
+# %%
+mu = {k: G[k].mean() for k in CELLS}
+ef_yates = effects_from_means({k: rep[rep.celula == i + 1].Y.mean() for i, k in enumerate(CELLS)})  # só ilustrativo (apêndice)
+ef_obs = effects_from_means(mu)
+print("efeitos (médias brutas das células):", {k: round(v, 4) for k, v in ef_obs.items()})
+
+fig = plt.figure(figsize=(7, 6)); ax = fig.add_subplot(111, projection="3d")
+for k in CELLS:
+    ax.scatter(*k, s=900 * abs(mu[k]) + 100, c=[mu[k]], cmap="RdYlGn", vmin=0, vmax=.45)
+    ax.text(k[0], k[1], k[2] + .08, f"{mu[k]:.3f}", ha="center")
+ax.set_xlabel("A (IA)"); ax.set_ylabel("B (Ansiedade)"); ax.set_zlabel("C (Estudo)")
+ax.set_xticks([-1, 1]); ax.set_yticks([-1, 1]); ax.set_zticks([-1, 1]); ax.set_title("Cubo 2³ – média bruta de ΔGPA por célula")
+save("07_cubo_2x3")
+
+# %%
+fig, ax = plt.subplots(1, 3, figsize=(14, 4))
+for i, (f, nome) in enumerate((("A", "IA (Ativo → Passivo)"), ("B", "Ansiedade"), ("C", "Estudo"))):
+    m_ = fat.groupby(f).Delta_GPA.agg(["mean", "std", "size"])
+    ax[i].errorbar([-1, 1], m_["mean"], yerr=1.96 * m_["std"] / np.sqrt(m_["size"]), marker="o", capsize=4)
+    ax[i].set_xticks([-1, 1]); ax[i].set_title(f"Efeito principal: {nome}"); ax[i].set_ylabel("ΔGPA médio")
+save("08_efeitos_principais")
+
+fig, ax = plt.subplots(1, 3, figsize=(14, 4))
+for i, (f1, f2) in enumerate((("A", "B"), ("A", "C"), ("B", "C"))):
+    for lvl, g in fat.groupby(f2):
+        m_ = g.groupby(f1).Delta_GPA.mean(); ax[i].plot(m_.index, m_.values, marker="o", label=f"{f2}={lvl}")
+    ax[i].set_xticks([-1, 1]); ax[i].set_xlabel(f1); ax[i].set_ylabel("ΔGPA médio"); ax[i].set_title(f"Interação {f1}×{f2}"); ax[i].legend()
+save("09_interacoes")
+
+# %%
+ef_s = pd.Series(ef_obs).reindex(EF_ORDEM)
+t_hc3 = pd.Series({n.replace(":", ""): fit_hc3.tvalues[n] for n in fit_hc3.tvalues.index if n != "Intercept"}).reindex(EF_ORDEM)
+pa = t_hc3.abs().sort_values()
+plt.figure(figsize=(7, 4)); plt.barh(pa.index, pa.values, color=["#c0392b" if ef_s[i] < 0 else "#27ae60" for i in pa.index])
+plt.title("Pareto dos efeitos (|t| com erro-padrão HC3)\nverde: positivo | vermelho: negativo"); save("10_pareto_efeitos")
+
+order = ef_s.sort_values().index; q = stats.norm.ppf((np.arange(1, 8) - .5) / 7)
+plt.figure(figsize=(6, 4.5)); plt.scatter(ef_s[order], q)
+for n_, x_, y_ in zip(order, ef_s[order], q): plt.annotate(n_, (x_, y_), xytext=(4, 3), textcoords="offset points")
+plt.xlabel("Efeito"); plt.ylabel("Quantil normal"); plt.title("Normal plot dos efeitos"); save("11_normal_plot_efeitos")
+
+# %% [markdown]
+# ## 5. NÚCLEO – Bootstrap estratificado exclusivamente para os IC95% dos efeitos
+
+# %%
+def boot_effects(G, nboot, seed):
+    rng = np.random.default_rng(seed); out = []
+    for _ in range(nboot):
+        out.append(effects_from_means({k: v[rng.integers(0, len(v), len(v))].mean() for k, v in G.items()}))
+    return pd.DataFrame(out)
+
+obs = effects_from_means({k: G[k].mean() for k in CELLS})
+BS = boot_effects(G, NBOOT, SEED)
+ci = pd.DataFrame({"efeito_obs": obs, "ic_inf": BS.quantile(.025), "ic_sup": BS.quantile(.975), "dp_boot": BS.std()})
+ci["ic_exclui_0"] = (ci.ic_inf > 0) | (ci.ic_sup < 0)
+print(ci.round(4))
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+for i, n_ in enumerate(ci.index[::-1]):
+    c = "#c0392b" if ci.loc[n_, "ic_exclui_0"] else "gray"
+    ax.errorbar(ci.loc[n_, "efeito_obs"], i, xerr=[[ci.loc[n_, "efeito_obs"] - ci.loc[n_, "ic_inf"]], [ci.loc[n_, "ic_sup"] - ci.loc[n_, "efeito_obs"]]], fmt="o", color=c, capsize=4)
+ax.axvline(0, color="k", ls="--"); ax.set_yticks(range(7)); ax.set_yticklabels(ci.index[::-1])
+ax.set_title("Forest plot: efeitos com IC95% bootstrap (vermelho = exclui 0)"); ax.set_xlabel("Efeito em ΔGPA"); save("12_forest_plot_efeitos")
+
+# %%
+pv = anova.drop("Residual")
+pr_ = pct_raw.reindex(EF_ORDEM)
+plt.figure(figsize=(7, 4)); sns.barplot(x=pr_.index, y=pr_.values, color="#34495e"); plt.xticks(rotation=30)
+plt.ylabel("% da variância total (SS/SST)"); plt.title(f"Contribuição de cada termo (dados brutos; resíduo = {ss_raw['Residual'] / ss_raw.sum():.0%})"); save("13_pct_variancia")
+
+# %% [markdown]
+# ## 6. APÊNDICE – Estabilidade entre sementes e análise de sensibilidade (regras de corte, regressão contínua, ANCOVA)
+
+# %%
+
+# estabilidade entre sementes
+seeds = []
+for sd in (42, 1, 2, 3, 4, 5, 6, 7, 8, 9):
+    m_ = smf.ols("Y ~ A*B*C", make_replicas(G, R, M, sd)).fit()
+    seeds.append({n.replace(":", ""): 2 * m_.params[n] for n in m_.params.index if n != "Intercept"})
+seeds = pd.DataFrame(seeds); seeds.to_csv(f"{OUT_DAT}/seeds.csv", index=False)
+est = seeds.agg(["mean", "std", "min", "max"]).T.round(4); print(est)
+
+# sensibilidade nas regras de corte
+def sens(regra):
+    d = s.copy()
+    if regra == "mediana":
+        d["B"] = np.where(an > qa2, 1, -1); d["C"] = np.where(hr > qh2, 1, -1)
+    elif regra == "<=Q1/>=Q3":
+        d["B"] = np.where(an >= qa3, 1, np.where(an <= qa1, -1, 0)); d["C"] = np.where(hr >= qh3, 1, np.where(hr <= qh1, -1, 0))
+    else:
+        d["B"] = np.where(an >= qa3, 1, np.where(an < qa1, -1, 0)); d["C"] = np.where(hr >= qh3, 1, np.where(hr < qh1, -1, 0))
+    d = d[(d.B != 0) & (d.C != 0)]
+    g = {k: v.Delta_GPA.values for k, v in d.groupby(["A", "B", "C"])}
+    e = effects_from_means({k: g[k].mean() for k in CELLS})
+    bs = boot_effects(g, 1000, SEED)
+    return {"n": len(d), "n_min_celula": min(len(v) for v in g.values()), **{f"{k}": f"{e[k]:+.3f}{'*' if (bs[k].quantile(.025) > 0 or bs[k].quantile(.975) < 0) else ''}" for k in EFFECTS}}
+regras = ("mediana (principal)", "<Q1/>=Q3", "<=Q1/>=Q3")
+sensib = pd.DataFrame({r: sens(r.split(" ")[0]) for r in regras}).T
+sensib.to_csv(f"{OUT_DAT}/sensibilidade.csv"); print(sensib, "\n(* = IC95% bootstrap exclui 0)")
+
+# sensibilidade: regressão contínua (sem dicotomizar B e C)
+cont = smf.ols("Delta_GPA ~ A * Anxiety_Level_During_Exams + Traditional_Study_Hours", s).fit()
+print(f"Regressão contínua (R²={cont.rsquared:.3f}):\n", cont.summary().tables[1])
+pd.DataFrame({"coef": cont.params, "p": cont.pvalues}).round(4).to_csv(f"{OUT_DAT}/regressao_continua.csv")
+
+# sensibilidade: ANCOVA com Pre_GPA
+anc = smf.ols("Delta_GPA ~ A*B*C + Pre_Semester_GPA", fat).fit()
+print("ANCOVA (Pre_GPA) coef A,B,C,AB:", (2 * anc.params[["A", "B", "C", "A:B"]]).round(4).to_dict())
+
+# %%
+sub = sensib.drop(columns=["n", "n_min_celula"]).map(lambda x: float(str(x).rstrip("*")))
+sub.T.plot(kind="bar", figsize=(9, 4)); plt.axhline(0, color="k", lw=.8); plt.title("Sensibilidade: efeitos por regra de corte")
+plt.ylabel("Efeito em ΔGPA"); plt.xticks(rotation=0); save("14_sensibilidade")
+
+# %% [markdown]
+# ## 7. NÚCLEO – Consolidação (tabela de efeitos) e veredito
+
+# %%
+mestre = pd.DataFrame({
+    "efeito": ci.efeito_obs, "ic95_inf": ci.ic_inf, "ic95_sup": ci.ic_sup,
+    "pct_var_bruta": pct_raw, "p_hc3": hc3, "p_anova_bruta": p_raw,
+    "efeito_anova_boot": pd.Series(ef_anova), "pct_var_boot": pv.pct_var.rename(lambda i: i.replace(":", "")),
+    "p_anova_boot": pv["PR(>F)"].rename(lambda i: i.replace(":", "")),
+    "efeito_dp_entre_seeds": seeds.std()})
+def veredito(r):
+    a, b = r.ic95_inf > 0 or r.ic95_sup < 0, r.p_hc3 < .05
+    return "significativo" if a and b else ("fraco" if a or b else "não significativo")
+mestre["veredito"] = mestre.apply(veredito, axis=1)
+mestre = mestre.reindex(["A", "B", "C", "AB", "AC", "BC", "ABC"])
+mestre.round(4).to_csv(f"{OUT_DAT}/efeitos_ic.csv"); print(mestre.round(4).to_string())
+
+# %%
+checks = pd.DataFrame([
+    ("Shapiro dos resíduos (p>0,05)", sh.pvalue > .05, f"p={sh.pvalue:.3f}"),
+    ("Levene dados brutos (p>0,05) – tratado por HC3", lev_raw.pvalue > .05, f"p={lev_raw.pvalue:.1e}"),
+    ("Levene réplicas bootstrap (p>0,05)", lev.pvalue > .05, f"p={lev.pvalue:.3f}"),
+    ("Estabilidade entre seeds (DP<0,01)", bool((seeds.std() < .01).all()), f"máx DP={seeds.std().max():.4f}"),
+    ("Concordância IC bootstrap × HC3 (sem 'fraco')", bool((mestre.veredito != "fraco").all()), ", ".join(mestre.index[mestre.veredito == "fraco"]) or "-"),
+    ("Pre_GPA balanceado (ANOVA p>0,05)", stats.f_oneway(*[g.Pre_Semester_GPA for _, g in fat.groupby("celula")]).pvalue > .05, "ver balanceamento")],
+    columns=["checagem", "ok", "detalhe"])
+checks.to_csv(f"{OUT_DAT}/validacao.csv", index=False); print(checks.to_string())
+print("\nCONCLUSÃO:")
+for n_, r in mestre.iterrows():
+    print(f"  {n_:3s}: {r.efeito:+.3f} [{r.ic95_inf:+.3f}; {r.ic95_sup:+.3f}] -> {r.veredito}")
+
+# %% [markdown]
+# ## 8. APÊNDICE – Balanceamento e inferência: esquemas de réplica, varredura de m, permutação e teto de GPA
+
+# %%
+R_GRANDE, M_GRANDE, NPERM = 300, 150, 5000
+M_MIN = min(len(v) for v in G.values())
+
+def make_replicas2(G, r, m, seed, replace):
+    rng = np.random.default_rng(seed); out = {k: [] for k in CELLS}
+    for k in CELLS:
+        for _ in range(r):
+            out[k].append(G[k][rng.choice(len(G[k]), m, replace=replace)].mean())
+    return {k: np.array(v) for k, v in out.items()}
+
+def efeitos_por_replica(med):
+    return pd.DataFrame({n: sum(f(k) * med[k] for k in CELLS) / 4 for n, f in EFFECTS.items()})
+
+esquemas = {"boot m=36 (atual)": (36, True), f"boot m={M_GRANDE}": (M_GRANDE, True),
+            f"sem reposição m={M_GRANDE}": (M_GRANDE, False), f"sem reposição m={M_MIN}": (M_MIN, False)}
+linhas = []
+for nome, (m_, rp) in esquemas.items():
+    E = efeitos_por_replica(make_replicas2(G, R_GRANDE, m_, SEED, rp))
+    for n in EFFECTS:
+        linhas.append(dict(esquema=nome, efeito=n, media=E[n].mean(), ic_inf=E[n].quantile(.025), ic_sup=E[n].quantile(.975), dp=E[n].std()))
+esq = pd.DataFrame(linhas); esq.to_csv(f"{OUT_DAT}/esquemas_replica.csv", index=False)
+print(esq.pivot(index="efeito", columns="esquema", values="media").reindex(list(EFFECTS)).round(4))
+print(esq.pivot(index="efeito", columns="esquema", values="dp").reindex(list(EFFECTS)).round(4))
+
+# varredura de m (sem reposição)
+varr = []
+for m_ in (36, 75, 120, 150, M_MIN):
+    E = efeitos_por_replica(make_replicas2(G, R_GRANDE, m_, SEED, False))
+    for n in EFFECTS:
+        varr.append(dict(m=m_, efeito=n, media=E[n].mean(), ic_inf=E[n].quantile(.025), ic_sup=E[n].quantile(.975), dp=E[n].std()))
+varr = pd.DataFrame(varr); varr.to_csv(f"{OUT_DAT}/varredura_m.csv", index=False)
+fig, ax = plt.subplots(1, 2, figsize=(13, 4.5))
+for n in ("A", "B", "C", "AB"):
+    v = varr[varr.efeito == n]; ax[0].errorbar(v.m, v["media"], yerr=[v["media"] - v.ic_inf, v.ic_sup - v["media"]], marker="o", capsize=3, label=n)
+    ax[1].plot(v.m, v.dp, marker="o", label=n)
+ax[0].axhline(0, color="k", lw=.8); ax[0].set_xlabel("m por célula (sem reposição)"); ax[0].set_ylabel("Efeito em ΔGPA (IC95% entre réplicas)"); ax[0].set_title("Efeitos × m"); ax[0].legend()
+ax[1].set_xlabel("m por célula"); ax[1].set_ylabel("DP do efeito entre réplicas"); ax[1].set_title("Variabilidade entre réplicas × m"); ax[1].legend()
+save("20_varredura_m")
+
+# %%
+# teste de permutação (hipótese nula global: ΔGPA independe de A, B, C), efeitos sobre dados brutos desbalanceados
+ci_idx = np.array([CELLS.index(k) for k in zip(fat.A, fat.B, fat.C)]); y = fat.Delta_GPA.values
+sinal = {n: np.array([f(k) for k in CELLS]) for n, f in EFFECTS.items()}
+cnt = np.bincount(ci_idx, minlength=8)
+def efeitos_perm(yy):
+    mu_ = np.bincount(ci_idx, weights=yy, minlength=8) / cnt
+    return {n: (sinal[n] * mu_).sum() / 4 for n in EFFECTS}
+rng = np.random.default_rng(SEED)
+nulo = pd.DataFrame([efeitos_perm(rng.permutation(y)) for _ in range(NPERM)])
+obs_p = efeitos_perm(y)
+p_perm_global = pd.Series({n: (np.sum(np.abs(nulo[n]) >= abs(obs_p[n])) + 1) / (NPERM + 1) for n in EFFECTS})
+# permutação de resíduos do modelo reduzido (Freedman–Lane): testa cada termo sem supor que os demais são nulos
+X8 = np.column_stack([np.ones(8)] + [sinal[n] for n in EFFECTS]); nomes_x = ["I"] + list(EFFECTS)
+mu_obs = np.bincount(ci_idx, weights=y, minlength=8) / cnt
+p_perm = {}
+for n in EFFECTS:
+    cols = [i for i, c in enumerate(nomes_x) if c != n]
+    beta = np.linalg.lstsq(X8[:, cols] * np.sqrt(cnt)[:, None], mu_obs * np.sqrt(cnt), rcond=None)[0]
+    fit_i = (X8[:, cols] @ beta)[ci_idx]; resid = y - fit_i; rng_n = np.random.default_rng(SEED)
+    st = np.array([efeitos_perm(fit_i + rng_n.permutation(resid))[n] for _ in range(NPERM)])
+    p_perm[n] = (np.sum(np.abs(st) >= abs(obs_p[n])) + 1) / (NPERM + 1)
+p_perm = pd.Series(p_perm)
+print("Permutação global, p:", p_perm_global.round(4).to_dict()); print("Permutação (resíduos do modelo reduzido), p:", p_perm.round(4).to_dict())
+
+fig, ax = plt.subplots(1, 3, figsize=(15, 4))
+for a_, n in zip(ax, ("A", "C", "AB")):
+    sns.histplot(nulo[n], bins=50, ax=a_, color="gray"); a_.axvline(obs_p[n], color="red", lw=2, label=f"observado={obs_p[n]:+.3f}\np={p_perm[n]:.4f}")
+    a_.set_title(f"Distribuição nula – {n}"); a_.set_xlabel("Efeito sob permutação"); a_.legend()
+save("22_permutacao_nulo")
+
+# %%
+# teto de GPA: reflexão + raiz, e regressão quantílica (mediana)
+print(f"Post_GPA no teto 4,0 no recorte: {(fat.Post_Semester_GPA >= 4.0).mean():.1%}")
+c_ = fat.Delta_GPA.max() + .01
+fat["Y_t"] = -np.sqrt(c_ - fat.Delta_GPA)
+gt = {k: v.Y_t.values for k, v in fat.groupby(["A", "B", "C"])}
+e_t = effects_from_means({k: gt[k].mean() for k in CELLS}); bs_t = boot_effects(gt, 1000, SEED)
+qr = smf.quantreg("Delta_GPA ~ A*B*C", fat).fit(q=.5)
+e_q = {n.replace(":", ""): 2 * qr.params[n] for n in qr.params.index if n != "Intercept"}
+p_q = {n.replace(":", ""): qr.pvalues[n] for n in qr.pvalues.index if n != "Intercept"}
+teto = pd.DataFrame({"efeito_transf": e_t,
+    "ic_exclui_0_transf": {n: bool(bs_t[n].quantile(.025) > 0 or bs_t[n].quantile(.975) < 0) for n in EFFECTS},
+    "efeito_mediana_quantilica": e_q, "p_quantilica": p_q}).reindex(list(EFFECTS))
+teto.round(4).to_csv(f"{OUT_DAT}/teto_gpa.csv"); print(teto.round(4))
+
+# %%
+# consolidação: forest plot por método e validação do esquema sem reposição
+Eb = efeitos_por_replica(make_replicas2(G, R_GRANDE, M_GRANDE, SEED, False))
+metodos = {"réplicas atual (m=36, repos.)": (ef_yates, None),
+           f"sem reposição m={M_GRANDE}": (Eb.mean().to_dict(), (Eb.quantile(.025), Eb.quantile(.975))),
+           "bootstrap completo": (obs, (ci.ic_inf, ci.ic_sup)),
+           "permutação (obs.)": (obs_p, None)}
+fig, ax = plt.subplots(figsize=(9, 6)); desl = np.linspace(-.27, .27, len(metodos)); nomes = list(EFFECTS)
+for j, (mn, (e, c)) in enumerate(metodos.items()):
+    ys = np.arange(len(nomes))[::-1] + desl[j]; xs = [e[n] for n in nomes]
+    if c is None: ax.plot(xs, ys, "o", label=mn)
+    else: ax.errorbar(xs, ys, xerr=[[e[n] - c[0][n] for n in nomes], [c[1][n] - e[n] for n in nomes]], fmt="o", capsize=3, label=mn)
+ax.axvline(0, color="k", ls="--"); ax.set_yticks(np.arange(len(nomes))[::-1]); ax.set_yticklabels(nomes)
+ax.set_xlabel("Efeito em ΔGPA"); ax.set_title("Comparação de métodos de inferência (IC95%)"); ax.legend(fontsize=8)
+save("21_comparacao_metodos")
+
+res_b = pd.DataFrame({"efeito_sem_repos": Eb.mean(), "ic_inf": Eb.quantile(.025), "ic_sup": Eb.quantile(.975)})
+res_b["p_perm"] = p_perm; res_b["p_hc3"] = hc3; res_b["p_anova_bruta"] = p_raw
+res_b["p_anova_boot"] = pv["PR(>F)"].rename(lambda i: i.replace(":", ""))
+res_b.reindex(list(EFFECTS)).round(4).to_csv(f"{OUT_DAT}/inferencia_consolidada.csv"); print(res_b.reindex(list(EFFECTS)).round(4))
+Ebm = Eb.copy(); Ebm["celula_dummy"] = 0
+rep_b = make_replicas2(G, R_GRANDE, M_GRANDE, SEED, False)
+rb = pd.DataFrame([dict(A=k[0], B=k[1], C=k[2], celula=CELLS.index(k) + 1, Y=v) for k in CELLS for v in rep_b[k]])
+mb = smf.ols("Y ~ A*B*C", rb).fit()
+print(f"Sem reposição m={M_GRANDE}: Shapiro resíduos p={stats.shapiro(mb.resid).pvalue:.3f} | Levene p={stats.levene(*[g.Y.values for _, g in rb.groupby('celula')]).pvalue:.3f}")
+sdb = pd.DataFrame([efeitos_por_replica(make_replicas2(G, R_GRANDE, M_GRANDE, s_, False)).mean() for s_ in (42, 1, 2, 3, 4)])
+print("DP entre sementes (sem repos.):", sdb.std().round(4).to_dict())

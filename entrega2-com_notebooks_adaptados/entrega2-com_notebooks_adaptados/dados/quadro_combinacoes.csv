@@ -1,0 +1,9 @@
+Ensaio,Yates,A (IA),B (Ansiedade),C (Estudo),n alunos,ΔGPA médio,DP,Réplicas (r),m por réplica,Observações
+1,(1),-1 Ativo,-1 Baixa (≤Q2),-1 Baixas (≤Q2),667,0.196,0.172,30,36,30
+2,a,+1 Passivo,-1 Baixa (≤Q2),-1 Baixas (≤Q2),210,0.152,0.198,30,36,30
+3,b,-1 Ativo,+1 Alta (>Q2),-1 Baixas (≤Q2),576,0.201,0.184,30,36,30
+4,ab,+1 Passivo,+1 Alta (>Q2),-1 Baixas (≤Q2),187,0.091,0.236,30,36,30
+5,c,-1 Ativo,-1 Baixa (≤Q2),+1 Altas (>Q2),639,0.317,0.17,30,36,30
+6,ac,+1 Passivo,-1 Baixa (≤Q2),+1 Altas (>Q2),235,0.252,0.176,30,36,30
+7,bc,-1 Ativo,+1 Alta (>Q2),+1 Altas (>Q2),584,0.323,0.173,30,36,30
+8,abc,+1 Passivo,+1 Alta (>Q2),+1 Altas (>Q2),181,0.233,0.179,30,36,30

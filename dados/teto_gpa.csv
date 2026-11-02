@@ -1,0 +1,8 @@
+,efeito_transf,ic_exclui_0_transf,efeito_mediana_quantilica,p_quantilica
+A,-0.0478,True,-0.051,0.0
+B,-0.0093,True,-0.009,0.303
+C,0.0747,True,0.114,0.0
+AB,-0.0134,True,-0.0205,0.0191
+AC,-0.0039,False,-0.0055,0.5292
+BC,0.0051,False,0.0035,0.6887
+ABC,0.0046,False,0.013,0.137

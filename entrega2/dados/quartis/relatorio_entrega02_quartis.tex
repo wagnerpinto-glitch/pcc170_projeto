@@ -1,0 +1,474 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
+\graphicspath{{../figuras/}}
+\captionsetup{font=small,labelfont=bf}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\newcommand{\dgpa}{\ensuremath{\Delta\mathrm{GPA}}}
+
+\title{\textbf{Impacto do uso passivo vs.\ ativo de IA\\generativa no \dgpa{}:\\Experimento fatorial $2^3 r$\\com bootstrap estratificado}\\[0.3em]
+\large Relat\'orio da Entrega 2 -- Resultados preliminares}
+\author{Wagner Tironi Pinto\\[0.2em]
+\small Orientador: Prof.\ Dr.\ Carlos H.\ G.\ Ferreira\\
+\small PCC170 -- Projeto e An\'alise de Experimentos Computacionais}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Este relat\'orio apresenta a Entrega 2 do projeto de PCC170. Avalia-se se o modo de uso de IA generativa
+(\emph{passivo}: gerar texto/resposta pronta; \emph{ativo}: idear, resumir, depurar) afeta a varia\c{c}\~ao
+de desempenho acad\^emico (\dgpa{} $=$ GPA p\'os $-$ GPA pr\'e), em interação com a ansiedade em exames e as horas de estudo.
+O recorte \'e \'unico (STEM + \emph{Junior}, $n=3.279$) e os n\'iveis dos fatores s\'ao definidos por quartis:
+\emph{alto} $\ge Q_3$ e \emph{baixo} $<Q_1$, restando 848 alunos. Utiliza-se um projeto fatorial $2^3$ com $r=30$ r\'eplicas
+obtidas por bootstrap estratificado (semente 42, $m=36$ alunos por c\'elula), e um segundo ciclo de bootstrap (5.000 reamostras)
+para intervalos de confian\c{c}a dos efeitos. O efeito da horas de estudo \'e dominante ($+0{,}195$; 74,7\% da vari\^ancia);
+o uso passivo reduz o \dgpa{} em $0{,}067$ (IC95\% $[-0{,}097;-0{,}038]$) e interage negativamente com a ansiedade
+($-0{,}046$). Os resultados s\~ao preliminares e observacionais, e as limita\c{c}\~oes s\~ao discutidas.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%=====================================================================
+\section{Introdu\c{c}\~ao}
+%=====================================================================
+\textbf{Contexto.} A ado\c{c}\~ao de IA generativa por estudantes universit\'arios cresceu rapidamente, mas h\'a
+d\'uvida sobre se seus benef\'icios dependem da \emph{forma} de uso. Usos que substituem o esfor\c{c}o cognitivo
+(obter respostas prontas, redigir textos) tendem a ser distintos de usos que o ampliam (gerar ideias, resumir leituras, depurar c\'odigo).
+
+\textbf{Motiva\c{c}\~ao e problema.} Na Entrega 1 foi estimado, por \emph{propensity score matching}, um efeito m\'edio
+do uso passivo de $\text{ATE}=-0{,}072$ (IC95\% $[-0{,}092;-0{,}053]$). Ap\'os orienta\c{c}\~ao do professor, o problema foi
+reformulado: (i) adotar um \'unico recorte (STEM + \emph{Junior}) para evitar vi\'es de composi\c{c}\~ao; (ii) usar
+bootstrap e um projeto fatorial para normalizar os dados e quantificar efeitos e intera\c{c}\~oes.
+
+\textbf{Objetivo.} Quantificar o efeito do modo de uso da IA (A), da ansiedade em exames (B) e das horas de estudo
+tradicionais (C), e suas intera\c{c}\~oes, sobre o \dgpa{}.
+
+\textbf{Hip\'otese geral (definida antes do experimento).} $H_0$: nenhum dos efeitos principais ou de intera\c{c}\~ao
+sobre o \dgpa{} \'e diferente de zero. $H_1$: o uso passivo reduz o \dgpa{} em relação ao uso ativo, e esse efeito
+depende (interage) do n\'ivel de ansiedade e/ou das horas de estudo.
+
+%=====================================================================
+\section{An\'alise Explorat\'oria dos Dados}
+%=====================================================================
+Esta se\c{c}\~ao apenas caracteriza os dados; a avalia\c{c}\~ao da hip\'otese ocorre nas se\c{c}\~oes seguintes.
+
+\subsection{Base de dados}
+A base \texttt{ai\_student\_impact\_dataset.csv} possui 50.000 registros e 16 vari\'aveis, sem valores nulos. Trata-se de dados
+tabulares (n\~ao simulados pelo autor) cuja origem exata (provavelmente um conjunto p\'ublico sint\'etico do Kaggle) deve
+ser citada na vers\~ao final. Vari\'aveis usadas: \texttt{Primary\_Use\_Case}, \texttt{Anxiety\_Level\_During\_Exams} (1--10),
+\texttt{Traditional\_Study\_Hours}, \texttt{Pre\_Semester\_GPA}, \texttt{Post\_Semester\_GPA}, \texttt{Major\_Category} e \texttt{Year\_of\_Study}.
+A resposta \'e $\dgpa{}=\text{GPA}_{p\acute{o}s}-\text{GPA}_{pr\acute{e}}$.
+
+\subsection{Recorte e estat\'isticas descritivas}
+O recorte STEM + \emph{Junior} cont\'em $n=3.279$ alunos (813 passivos e 2.466 ativos).
+
+\begin{table}[H]
+\centering
+\caption{Estat\'isticas descritivas (base completa e recorte STEM + \emph{Junior}).}
+\begin{tabular}{lcccc}
+\toprule
+Vari\'avel & \multicolumn{2}{c}{Base completa} & \multicolumn{2}{c}{STEM + Junior}\\
+ & M\'edia & DP & M\'edia & DP\\
+\midrule
+\dgpa{} & 0,20 & 0,19 & 0,24 & 0,19\\
+Ansiedade (1--10) & 4,27 & 2,14 & 4,42 & 2,23\\
+Horas de estudo & 11,21 & 5,16 & 11,04 & 5,29\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Defini\c{c}\~ao dos n\'iveis por quartis}
+No recorte, os quartis s\~ao: ansiedade $Q_1=3$, $Q_3=6$; horas de estudo $Q_1=7{,}33$, $Q_3=14{,}475$.
+N\'ivel \emph{baixo} $<Q_1$ e n\'ivel \emph{alto} $\ge Q_3$. Alunos em faixas intermedi\'arias s\~ao exclu\'idos
+do experimento, restando 848 (25,9\% do recorte). As Figuras~\ref{fig:dist} e~\ref{fig:n} mostram as distribui\c{c}\~oes, os pontos de corte e o tamanho das c\'elulas.
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{01_distribuicoes_quartis.png}
+\caption{Distribui\c{c}\~oes de ansiedade, horas de estudo e \dgpa{} com os quartis de corte.}\label{fig:dist}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.8\textwidth]{02_n_por_celula.png}
+\caption{N\'umero de alunos por c\'elula do fatorial. A menor c\'elula tem $n=36$ (passivo, ansiedade baixa, pouco estudo).}\label{fig:n}
+\end{figure}
+
+\subsection{Distribui\c{c}\~ao acumulada (CDF)}
+As CDFs emp\'iricas permitem comparar os grupos sem depender de agrupamento (\emph{bins}). A Figura~\ref{fig:cdf1}
+mostra que a curva do \dgpa{} de usu\'arios passivos est\'a deslocada \`a esquerda, e que a curva de horas altas est\'a deslocada \`a direita (maior \dgpa{}).
+A Figura~\ref{fig:cdf2} compara as oito c\'elulas e o efeito do recorte. A Figura~\ref{fig:cdf3} mostra as vari\'aveis cont\'inuas com os quartis.
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{15_cdf_fatores.png}
+\caption{CDF do \dgpa{} segundo cada fator (A, B e C).}\label{fig:cdf1}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{16_cdf_por_celula_e_recorte.png}
+\caption{CDF do \dgpa{} por c\'elula e por recorte (base completa, STEM + Junior e n\'iveis extremos).}\label{fig:cdf2}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{17_cdf_ansiedade_horas_quartis.png}
+\caption{CDF de ansiedade e horas de estudo com marca\c{c}\~ao de $Q_1$ e $Q_3$.}\label{fig:cdf3}
+\end{figure}
+
+\subsection{Resposta bruta por c\'elula}
+A Figura~\ref{fig:box} exibe o \dgpa{} bruto por c\'elula. As c\'elulas passivas t\^em assimetria negativa
+(aprox.\ $-0{,}68$; Shapiro--Wilk $p=0{,}067$ e $0{,}052$), o que motiva a normaliza\c{c}\~ao via bootstrap.
+O balanceamento da covari\'avel \texttt{Pre\_Semester\_GPA} entre as c\'elulas \'e adequado (ANOVA, $p=0{,}61$).
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{03_boxplot_bruto_por_celula.png}
+\caption{\dgpa{} bruto por c\'elula experimental.}\label{fig:box}
+\end{figure}
+
+%=====================================================================
+\section{Materiais e M\'etodos}
+%=====================================================================
+\subsection{Ambiente}
+Python 3.12.3, NumPy 2.5.4, pandas 3.1.0, SciPy 1.18.1, statsmodels 1.18.1, Matplotlib 3.11.2 e seaborn 0.15.0.
+O c\'odigo (\texttt{pcc170\_entrega02.py}) e o notebook executado (\texttt{.ipynb}) acompanham o relat\'orio.
+Sementes: 42 (principal) e outras nove para checar estabilidade.
+
+\subsection{Unidade experimental, fatores, n\'iveis e resposta}
+\textbf{Unidade experimental:} aluno de STEM no 3.\textordmasculine{} ano (\emph{Junior}). \textbf{Resposta:} \dgpa{}.
+\textbf{Condi\c{c}\~oes controladas:} \'area (STEM) e ano de estudo fixos; \texttt{Pre\_GPA} verificado como balanceado.
+
+\begin{table}[H]
+\centering
+\caption{Fatores e n\'iveis.}
+\begin{tabular}{llp{5.2cm}p{4cm}}
+\toprule
+Fator & Nome & N\'ivel $-1$ & N\'ivel $+1$\\
+\midrule
+A & Modo de uso da IA & Ativo (Ideation, Summarizing, Debugging) & Passivo (Copywriting/Drafting, Direct Answer)\\
+B & Ansiedade em exames & Baixa ($<3$) & Alta ($\ge 6$)\\
+C & Horas de estudo & Baixas ($<7{,}33$) & Altas ($\ge 14{,}475$)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Quadro das combina\c{c}\~oes de teste}
+Os 8 ensaios seguem a ordem de Yates (A varia mais r\'apido). A Tabela~\ref{tab:comb} apresenta as combina\c{c}\~oes,
+os tamanhos de c\'elula e as estat\'isticas da resposta; a Tabela~\ref{tab:sinais} traz a matriz de sinais
+com colunas A, B, C, AB, AC, BC e ABC (produto dos sinais), usada para calcular os efeitos.
+A Figura~\ref{fig:quadros} reproduz ambos os quadros.
+
+\begin{table}[H]
+\centering
+\caption{Combina\c{c}\~oes de teste (ordem de Yates).}\label{tab:comb}
+\begin{tabular}{ccccrcc}
+\toprule
+Ensaio & A & B & C & $n$ & M\'edia \dgpa{} & DP\\
+\midrule
+(1) & $-$ & $-$ & $-$ & 133 & 0,164 & 0,180\\
+a   & $+$ & $-$ & $-$ & 36  & 0,114 & 0,165\\
+b   & $-$ & $+$ & $-$ & 205 & 0,157 & 0,180\\
+ab  & $+$ & $+$ & $-$ & 63  & 0,028 & 0,250\\
+c   & $-$ & $-$ & $+$ & 118 & 0,326 & 0,155\\
+ac  & $+$ & $-$ & $+$ & 49  & 0,334 & 0,155\\
+bc  & $-$ & $+$ & $+$ & 187 & 0,340 & 0,178\\
+abc & $+$ & $+$ & $+$ & 57  & 0,243 & 0,189\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Matriz de sinais dos efeitos.}\label{tab:sinais}
+\begin{tabular}{c|ccccccc}
+\toprule
+Ensaio & A & B & C & AB & AC & BC & ABC\\
+\midrule
+(1) & $-$ & $-$ & $-$ & $+$ & $+$ & $+$ & $-$\\
+a   & $+$ & $-$ & $-$ & $-$ & $-$ & $+$ & $+$\\
+b   & $-$ & $+$ & $-$ & $-$ & $+$ & $-$ & $+$\\
+ab  & $+$ & $+$ & $-$ & $+$ & $-$ & $-$ & $-$\\
+c   & $-$ & $-$ & $+$ & $+$ & $-$ & $-$ & $+$\\
+ac  & $+$ & $-$ & $+$ & $-$ & $+$ & $-$ & $-$\\
+bc  & $-$ & $+$ & $+$ & $-$ & $-$ & $+$ & $-$\\
+abc & $+$ & $+$ & $+$ & $+$ & $+$ & $+$ & $+$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{19_quadros_combinacoes_e_sinais.png}
+\caption{Quadros das combina\c{c}\~oes de teste e da matriz de sinais.}\label{fig:quadros}
+\end{figure}
+
+\subsection{Aleatoriza\c{c}\~ao e r\'eplicas (Ciclo 1)}
+Para cada c\'elula $c$ e r\'eplica $j=1,\dots,r$ ($r=30$), sorteiam-se $m=36$ alunos \emph{com reposi\c{c}\~ao}
+dentro da c\'elula (36 \'e o tamanho da menor c\'elula, o que equilibra o desenho). A resposta da r\'eplica \'e
+$Y_{cj}=\overline{\dgpa{}}$ da amostra, resultando em $8\times30=240$ observa\c{c}\~oes. Cada r\'eplica \'e uma nova execu\c{c}\~ao
+com sorteio independente (gerador com semente fixa para reprodutibilidade).
+O Teorema Central do Limite faz com que as m\'edias amostrais sejam aproximadamente normais mesmo com c\'elulas assimétricas.
+Ajusta-se ent\~ao a ANOVA $2^3$ (\texttt{Y $\sim$ A*B*C}, SQ tipo II) e verificam-se as premissas (normalidade e homocedasticidade dos res\'iduos).
+
+\subsection{Efeitos e intervalos de confian\c{c}a (Ciclo 2)}
+O efeito de cada termo \'e
+\[
+\text{efeito}=\frac{1}{4}\sum_{c=1}^{8} s_c\,\overline{Y}_c ,
+\]
+onde $s_c$ \'e o sinal da coluna correspondente (Tabela~\ref{tab:sinais}); equivale ao dobro do coeficiente
+da regress\~ao com vari\'aveis codificadas em $\pm1$. Realizam-se 5.000 reamostras bootstrap estratificadas (tamanho $n_c$ completo
+de cada c\'elula), recalculando os sete efeitos em cada uma e obtendo ICs de 95\% pelo m\'etodo percentil.
+
+\subsection{Crit\'erios de valida\c{c}\~ao e decis\~ao}
+\begin{itemize}
+\item Shapiro--Wilk dos res\'iduos com $p>0{,}05$ e Levene entre c\'elulas com $p>0{,}05$.
+\item Estabilidade: desvio-padr\~ao do efeito entre 10 sementes $<0{,}01$.
+\item Balanceamento de \texttt{Pre\_GPA} (ANOVA, $p>0{,}05$).
+\item Decis\~ao: efeito \emph{significativo} se o IC95\% exclui 0 \textbf{e} o $p$ da ANOVA sobre os dados brutos ($n=848$, desbalanceada) $<0{,}05$;
+\emph{fraco} se apenas um dos crit\'erios \'e atendido; \emph{n\~ao significativo} caso contr\'ario.
+\end{itemize}
+
+%=====================================================================
+\section{Resultados Experimentais}
+%=====================================================================
+\subsection{Normaliza\c{c}\~ao pelo bootstrap}
+Os dados brutos das c\'elulas passivas s\~ao assim\'etricos; as m\'edias bootstrap tornam-se normais
+($p\ge0{,}10$ em todas as c\'elulas). As Figuras~\ref{fig:qq}, \ref{fig:histboot} e~\ref{fig:cdfboot} ilustram a normaliza\c{c}\~ao.
+
+\begin{table}[H]
+\centering
+\caption{Assimetria e Shapiro--Wilk por c\'elula (bruto vs.\ m\'edias bootstrap).}
+\begin{tabular}{crcccc}
+\toprule
+C\'elula & $n$ & Assim.\ bruta & $p$ bruto & Assim.\ boot. & $p$ boot.\\
+\midrule
+1 & 133 & 0,164 & 0,223 & 0,092 & 0,929\\
+2 & 36 & $-0,221$ & 0,799 & $-0,274$ & 0,804\\
+3 & 205 & 0,003 & 0,297 & $-0,395$ & 0,461\\
+4 & 63 & $-0,677$ & 0,067 & $-0,050$ & 0,902\\
+5 & 118 & 0,330 & 0,103 & 0,018 & 0,614\\
+6 & 49 & 0,119 & 0,949 & 0,535 & 0,101\\
+7 & 187 & 0,126 & 0,139 & $-0,079$ & 0,755\\
+8 & 57 & $-0,686$ & 0,052 & 0,299 & 0,683\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{05_qq_antes_depois.png}
+\caption{Gr\'aficos Q-Q antes (dados brutos) e depois (m\'edias bootstrap).}\label{fig:qq}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{06_hist_bootstrap_por_celula.png}
+\caption{Histogramas das m\'edias bootstrap por c\'elula.}\label{fig:histboot}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{18_cdf_bootstrap.png}
+\caption{CDF das m\'edias bootstrap versus CDF normal te\'orica.}\label{fig:cdfboot}
+\end{figure}
+
+\subsection{Vis\~ao geral das respostas (cubo)}
+A Figura~\ref{fig:cubo} apresenta o \dgpa{} m\'edio nos oito v\'ertices. O pior v\'ertice \'e
+\emph{passivo + ansiedade alta + pouco estudo} ($0{,}028$); o melhor, \emph{ativo + ansiedade alta + muito estudo} ($0{,}340$).
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.8\textwidth]{07_cubo_2x3.png}
+\caption{\dgpa{} m\'edio por v\'ertice do cubo $2^3$.}\label{fig:cubo}
+\end{figure}
+
+\subsection{ANOVA do fatorial $2^3 r$}
+\begin{table}[H]
+\centering
+\caption{ANOVA sobre as 240 observa\c{c}\~oes bootstrap.}
+\begin{tabular}{lrrrrr}
+\toprule
+Fonte & SQ & GL & $F$ & $p$ & \% var.\\
+\midrule
+A & 0,2727 & 1 & 279,8 & $<0{,}001$ & 8,9\\
+B & 0,1001 & 1 & 102,7 & $<0{,}001$ & 3,3\\
+C & 2,2779 & 1 & 2337,0 & $<0{,}001$ & 74,7\\
+AB & 0,1321 & 1 & 135,6 & $<0{,}001$ & 4,3\\
+AC & 0,0313 & 1 & 32,1 & $<0{,}001$ & 1,0\\
+BC & 0,0031 & 1 & 3,2 & 0,077 & 0,1\\
+ABC & 0,0054 & 1 & 5,6 & 0,019 & 0,2\\
+Res\'iduo & 0,2261 & 232 & -- & -- & 7,4\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Aten\c{c}\~ao:} os $p$-valores desta ANOVA s\~ao otimistas, pois as r\'eplicas reutilizam os mesmos 848 alunos.
+Por isso ela \'e usada para decompor a vari\^ancia (Figura~\ref{fig:pct}); a infer\^encia \'e feita pelo IC bootstrap e pela ANOVA bruta.
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.85\textwidth]{13_pct_variancia.png}
+\caption{Percentual da variância explicado por cada termo.}\label{fig:pct}
+\end{figure}
+
+\subsection{Efeitos e intervalos de confian\c{c}a}
+\begin{table}[H]
+\centering
+\caption{Efeitos estimados, IC95\% bootstrap, $p$ da ANOVA bruta e veredito.}\label{tab:efeitos}
+\begin{tabular}{lrcrl}
+\toprule
+Efeito & Valor & IC95\% & $p$ bruto & Veredito\\
+\midrule
+A (modo de uso) & $-0{,}0672$ & $[-0{,}0971;\,-0{,}0380]$ & $<0{,}001$ & significativo\\
+B (ansiedade) & $-0{,}0426$ & $[-0{,}0710;\,-0{,}0133]$ & 0,127 & fraco\\
+C (horas) & $+0{,}1952$ & $[+0{,}1673;\,+0{,}2246]$ & $<0{,}001$ & significativo\\
+AB & $-0{,}0460$ & $[-0{,}0759;\,-0{,}0172]$ & 0,0019 & significativo\\
+AC & $+0{,}0222$ & $[-0{,}0067;\,+0{,}0523]$ & 0,152 & n\~ao signif.\\
+BC & $+0{,}0040$ & $[-0{,}0253;\,+0{,}0343]$ & 0,565 & n\~ao signif.\\
+ABC & $-0{,}0065$ & $[-0{,}0345;\,+0{,}0235]$ & 0,663 & n\~ao signif.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.9\textwidth]{12_forest_plot_efeitos.png}
+\caption{\emph{Forest plot} dos efeitos com IC95\% bootstrap.}\label{fig:forest}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.9\textwidth]{08_efeitos_principais.png}
+\caption{Efeitos principais sobre o \dgpa{}.}\label{fig:main}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{09_interacoes.png}
+\caption{Gr\'aficos de intera\c{c}\~ao entre os fatores.}\label{fig:inter}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.9\textwidth]{10_pareto_efeitos.png}
+\caption{Diagrama de Pareto dos efeitos absolutos.}\label{fig:pareto}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.8\textwidth]{11_normal_plot_efeitos.png}
+\caption{Gr\'afico normal dos efeitos: pontos afastados da reta s\~ao efeitos ativos (C, A, AB e B).}\label{fig:normplot}
+\end{figure}
+
+\subsection{Diagn\'ostico dos res\'iduos e valida\c{c}\~ao}
+\begin{table}[H]
+\centering
+\caption{Checagens de valida\c{c}\~ao.}
+\begin{tabular}{lcl}
+\toprule
+Checagem & Atendida & Detalhe\\
+\midrule
+Shapiro dos res\'iduos ($p>0{,}05$) & Sim & $p=0{,}807$\\
+Levene entre c\'elulas ($p>0{,}05$) & Sim & $p=0{,}119$\\
+Estabilidade entre sementes (DP $<0{,}01$) & Sim & DP m\'ax.\ $=0{,}0055$\\
+Concord\^ancia IC $\times$ ANOVA bruta & N\~ao & efeito B ``fraco''\\
+Balanceamento de Pre\_GPA ($p>0{,}05$) & Sim & $p=0{,}61$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{04_diagnostico_residuos.png}
+\caption{Diagn\'ostico dos res\'iduos da ANOVA (normalidade e variância).}\label{fig:resid}
+\end{figure}
+
+\subsection{Estabilidade entre sementes}
+Repetindo o procedimento com 10 sementes, o desvio-padr\~ao dos efeitos fica entre $0{,}0013$ e $0{,}0055$
+(A: $-0{,}0674\pm0{,}0032$; C: $+0{,}1951\pm0{,}0049$; AB: $-0{,}0457\pm0{,}0013$), de modo que as conclus\~oes n\~ao dependem da semente.
+
+\subsection{An\'alise de sensibilidade}
+\begin{table}[H]
+\centering
+\caption{Efeitos sob defini\c{c}\~oes alternativas de n\'ivel (* = IC95\% exclui 0).}
+\small\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Defini\c{c}\~ao & $n$ & A & B & C & AB & AC & BC & ABC\\
+\midrule
+$<Q_1/\ge Q_3$ (principal) & 848 & $-0{,}067^*$ & $-0{,}043^*$ & $+0{,}195^*$ & $-0{,}046^*$ & $+0{,}022$ & $+0{,}004$ & $-0{,}006$\\
+$\le Q_1/\ge Q_3$ & 1.101 & $-0{,}080^*$ & $-0{,}038^*$ & $+0{,}193^*$ & $-0{,}033^*$ & $+0{,}011$ & $+0{,}006$ & $+0{,}005$\\
+Mediana & 3.279 & $-0{,}077^*$ & $-0{,}017^*$ & $+0{,}121^*$ & $-0{,}023^*$ & $0{,}000$ & $+0{,}011$ & $+0{,}010$\\
+\bottomrule
+\end{tabular}
+\end{table}
+Uma ANCOVA com \texttt{Pre\_GPA} como covari\'avel d\'a A $=-0{,}065$, B $=-0{,}041$, C $=+0{,}196$ e AB $=-0{,}048$, praticamente id\^enticos aos principais.
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth]{14_sensibilidade.png}
+\caption{Sensibilidade dos efeitos \`a defini\c{c}\~ao dos n\'iveis.}\label{fig:sens}
+\end{figure}
+
+%=====================================================================
+\section{Caracteriza\c{c}\~ao e An\'alises Finais}
+%=====================================================================
+Interpretando os efeitos em unidades de GPA (m\'edia de $+$ menos m\'edia de $-$):
+\begin{itemize}
+\item \textbf{C (horas de estudo):} estudar muito (acima de $Q_3$) acrescenta cerca de $0{,}195$ ponto em relação a estudar pouco; \'e o fator dominante (74,7\% da variância).
+\item \textbf{A (modo de uso):} o uso passivo reduz o \dgpa{} em cerca de $0{,}067$ em m\'edia (IC95\% $[-0{,}097;-0{,}038]$).
+\item \textbf{AB:} a penaliza\c{c}\~ao do uso passivo \'e maior sob ansiedade alta (c\'elula \emph{ab}: $0{,}028$ contra $0{,}114$ em \emph{a}), sugerindo que a ansiedade amplifica o dano do uso passivo.
+\item \textbf{AC:} n\~ao significativa; com muitas horas de estudo o efeito do uso passivo se atenua (c\'elula \emph{ac}: $0{,}334$ vs.\ \emph{c}: $0{,}326$), mas a diferen\c{c}a n\~ao \'e distingu\'ivel de zero.
+\item \textbf{B:} efeito principal fraco (IC exclui 0, mas $p$ bruto $=0{,}127$).
+\end{itemize}
+Recomenda\c{c}\~ao pr\'atica preliminar: priorizar usos ativos da IA, especialmente em estudantes ansiosos; o ganho por estudar mais supera o de qualquer escolha de modo de uso.
+
+%=====================================================================
+\section{Discuss\~ao}
+%=====================================================================
+\textbf{Avalia\c{c}\~ao preliminar da hip\'otese.} Rejeita-se $H_0$ para A, C e AB, em consist\^encia com $H_1$: o uso passivo
+reduz o \dgpa{} e o efeito depende da ansiedade. N\~ao h\'a evid\^encia de intera\c{c}\~ao com horas de estudo (AC, BC, ABC) nesta amostra.
+O resultado \'e coerente com a Entrega 1 (ATE $=-0{,}072$), embora a PSM tenha mudado pouco o resultado porque as covari\'aveis j\'a estavam balanceadas ($|\text{SMD}|<0{,}05$).
+
+\textbf{Limita\c{c}\~oes.}
+\begin{itemize}
+\item \emph{Infla\c{c}\~ao da ANOVA bootstrap:} as r\'eplicas reusam as mesmas 848 pessoas, logo os $p$ s\~ao otimistas; mitigado pelo uso do IC bootstrap e da ANOVA bruta.
+\item \emph{Defini\c{c}\~ao de ``passivo'':} inclui \emph{Copywriting}, cujo \dgpa{} ($0{,}200$) \'e igual ao de \emph{Ideation}; o efeito vem quase todo de \emph{Direct Answer Generation} ($0{,}133$). Restringir a esse uso deixa as c\'elulas inviáveis ($n=17$--$31$).
+\item \emph{Teto de GPA 4,0:} afeta cerca de 12\% do recorte e pode subestimar ganhos.
+\item \emph{C\'elulas passivas pequenas} ($36$--$63$ alunos) e desbalanceamento entre c\'elulas.
+\item \emph{Dados observacionais:} n\~ao h\'a atribui\c{c}\~ao aleat\'oria do modo de uso; n\~ao se estabelece causalidade. A base provavelmente \'e sint\'etica, limitando a generaliza\c{c}\~ao.
+\item \emph{Exclus\~ao das faixas intermedi\'arias:} 74\% do recorte n\~ao entra no experimento principal (a sensibilidade pela mediana mostra os mesmos sinais, com efeitos menores).
+\end{itemize}
+
+\textbf{Corre\c{c}\~oes \`a Entrega 1.} A reavalia\c{c}\~ao dos dados mostrou que: a base tem 50.000 registros reais (n\~ao 10.000 simulados);
+a tabela descritiva anterior estava incorreta (valores corretos na Tabela 1); a ansiedade n\~ao se concentra em 7--10 (moda $=4$);
+e a narrativa de confus\~ao n\~ao era sustentada pelos dados.
+
+%=====================================================================
+\section{Conclus\~oes e Trabalhos Futuros}
+%=====================================================================
+O fatorial $2^3 r$ com bootstrap estratificado \'e vi\'avel com os n\'iveis definidos por quartis (menor c\'elula $n=36$), produz respostas
+aproximadamente normais, res\'iduos v\'alidos e resultados est\'aveis entre sementes. As horas de estudo s\~ao o principal determinante do \dgpa{};
+o uso passivo de IA reduz o \dgpa{} em cerca de $0{,}07$ e interage negativamente com a ansiedade alta.
+
+\textbf{Ajustes planejados para a entrega final:}
+\begin{itemize}
+\item Citar a fonte e vers\~ao do conjunto de dados e documentar sua natureza.
+\item Testar defini\c{c}\~oes alternativas de ``passivo'' (por exemplo, somente \emph{Direct Answer}) com c\'elulas maiores ou outros recortes.
+\item Utilizar um esquema de r\'eplicas com subamostras disjuntas (sem reposi\c{c}\~ao) ou valida\c{c}\~ao cruzada para evitar infla\c{c}\~ao dos $p$-valores.
+\item Incluir modelos que tratem o teto de GPA (por exemplo, regress\~ao censurada) e ANCOVA como an\'alise principal.
+\item Replicar em outros recortes (por exemplo, outras \'areas e anos) para avaliar generaliza\c{c}\~ao.
+\end{itemize}
+
+%=====================================================================
+\appendix
+\section{Reprodutibilidade}
+%=====================================================================
+\begin{itemize}
+\item Par\^ametros: \texttt{SEED}=42, $r=30$, $m=36$, \texttt{NBOOT}=5.000.
+\item C\'odigo: \texttt{entrega2/pcc170\_entrega02.py} (fonte \'unica) e \texttt{pcc170\_entrega02.ipynb}.
+\item Figuras: \texttt{entrega2/figuras/} (19 arquivos); tabelas CSV: \texttt{entrega2/dados/}.
+\item Dados: \texttt{csv/ai\_student\_impact\_dataset.csv}.
+\end{itemize}
+
+\end{document}

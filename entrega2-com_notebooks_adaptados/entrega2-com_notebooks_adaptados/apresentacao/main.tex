@@ -1,0 +1,765 @@
+\documentclass[aspectratio=169, 10pt]{beamer}
+
+% --- Configurações Básicas e Idioma ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+
+% --- Pacotes Matemáticos e Tipográficos ---
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs,array,multirow,colortbl}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+\usepackage{pifont} % Para ícones de checkmark e xmark
+\usepackage{microtype}
+
+% --- Tema Madrid e Paleta em Tons de Azul Nobre ---
+\usetheme{Madrid}
+\usecolortheme{whale}
+
+% Definição de Cores Personalizadas em Tons de Azul
+\definecolor{DarkBlue}{RGB}{18, 48, 86}      % Azul Marinho Profundo
+\definecolor{MedBlue}{RGB}{32, 90, 140}      % Azul Médio Principal
+\definecolor{SoftBlue}{RGB}{232, 242, 250}   % Azul Suave para fundos
+\definecolor{AccentBlue}{RGB}{0, 120, 185}   % Azul Ciano Destaque
+\definecolor{NavyText}{RGB}{12, 30, 54}      % Azul Escuro para Texto
+\definecolor{StatusGreen}{RGB}{34, 139, 34}  % Verde para OK
+\definecolor{StatusAmber}{RGB}{210, 105, 30} % Âmbar para Alerta/Tratado
+
+% Configuração das Cores do Beamer
+\setbeamercolor{structure}{fg=MedBlue}
+\setbeamercolor{palette primary}{bg=DarkBlue,fg=white}
+\setbeamercolor{palette secondary}{bg=MedBlue,fg=white}
+\setbeamercolor{palette tertiary}{bg=DarkBlue!85!black,fg=white}
+\setbeamercolor{titlelike}{parent=palette primary,fg=white}
+\setbeamercolor{frametitle}{bg=DarkBlue,fg=white}
+\setbeamercolor{author in head/foot}{bg=DarkBlue!90!black,fg=white}
+\setbeamercolor{title in head/foot}{bg=MedBlue,fg=white}
+\setbeamercolor{date in head/foot}{bg=DarkBlue,fg=white}
+
+% Blocos Customizados em Tons de Azul
+\setbeamercolor{block title}{bg=MedBlue,fg=white}
+\setbeamercolor{block body}{bg=SoftBlue!50,fg=NavyText}
+\setbeamercolor{block title example}{bg=DarkBlue,fg=white}
+\setbeamercolor{block body example}{bg=SoftBlue!30,fg=NavyText}
+\setbeamercolor{block title alerted}{bg=red!75!DarkBlue,fg=white}
+\setbeamercolor{block body alerted}{bg=red!8,fg=NavyText}
+
+% Configuração de Itens e Símbolos
+\setbeamertemplate{items}[circle]
+\setbeamertemplate{navigation symbols}{} % Remove botões de navegação poluídos
+
+% Comandos auxiliares de status
+\newcommand{\cmark}{\textcolor{StatusGreen}{\ding{51}}}
+\newcommand{\tmark}{\textcolor{StatusAmber}{\ding{115}}}
+
+% --- Metadados da Apresentação ---
+\title[PCC170 --- Entrega 2: Resultados Preliminares]{Efeitos do Uso de Inteligência Artificial, Ansiedade e Estudo Tradicional no Rendimento Acadêmico ($\Delta \text{GPA}$)}
+\subtitle{Resultados Preliminares --- Projeto Fatorial $2^3 r$ com Análise Individual de Casos}
+\author[Wagner]{Wagner}
+\institute[UFOP]{
+    Programa de Pós-Graduação em Ciência da Computação (PPGCC) \\
+    Universidade Federal de Ouro Preto (UFOP) \\
+    \medskip
+    \textit{Disciplina: PCC170 --- Projeto e Análise de Experimentos Computacionais} \\
+    \textit{Docente: Prof. Carlos Henrique Gomes Ferreira}
+}
+\date{Novembro de 2026}
+
+% ==============================================================================
+% DOCUMENTO
+% ==============================================================================
+\begin{document}
+
+% ------------------------------------------------------------------------------
+% Slide 1: Capa
+% ------------------------------------------------------------------------------
+\begin{frame}[plain]
+    \titlepage
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 2: Contextualização e Motivação
+% ------------------------------------------------------------------------------
+\begin{frame}{1. Contextualização e Motivação}
+    \begin{columns}[T]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{O Paradoxo da IA na Educação}
+                \begin{itemize}\setlength{\itemsep}{5pt}
+                    \item Adoção exponencial de ferramentas baseadas em LLMs no ensino superior.
+                    \item \textbf{Dilema central:} Apoio cognitivo virtuoso (\textit{tutoria ativa}) versus atalho superficial (\textit{cópia passiva de respostas}).
+                    \item Risco real de atrofia reflexiva e queda no rendimento acumulado.
+                \end{itemize}
+            \end{block}
+
+            \begin{block}{Interações Comportamentais}
+                \begin{itemize}
+                    \item A ferramenta de IA não atua no vácuo: dedicação ao estudo tradicional e nível de ansiedade modulam o impacto final.
+                \end{itemize}
+            \end{block}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Abordagem via DoE}
+                \begin{itemize}\setlength{\itemsep}{5pt}
+                    \item Estruturação via \textbf{Projeto de Experimentos Computacionais}:
+                    \begin{itemize}
+                        \item Isolamento sistemático de efeitos principais e sinergias.
+                        \item Análise controlada com correção de heterocedasticidade.
+                    \end{itemize}
+                    \item \textbf{Meta:} Oferecer evidências empíricas para guiar políticas instrucionais na universidade.
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{População Alvo}
+                Estudantes de graduação em \textbf{STEM} no 3º ano (\textit{Junior}), período crítico de consolidação disciplinar.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 3: Pergunta de Pesquisa e Hipótese Geral
+% ------------------------------------------------------------------------------
+\begin{frame}{2. Pergunta de Pesquisa e Hipótese Geral}
+    \begin{block}{Pergunta Orientadora da Pesquisa}
+        \textit{De que maneira o modo de uso de IA, o nível de ansiedade em avaliações e as horas de estudo tradicional se combinam para influenciar o ganho de rendimento acadêmico ($\Delta \text{GPA}$) em estudantes STEM?}
+    \end{block}
+
+    \vspace{4pt}
+
+    \begin{exampleblock}{Hipótese Geral Formulada \textit{A Priori}}
+        \textbf{H:} \textit{O ganho acadêmico ($\Delta \text{GPA}$) é condicionado conjuntamente pelos três fatores. Espera-se que o uso ativo de IA e maior estudo tradicional elevem o $\Delta \text{GPA}$, enquanto o uso passivo e ansiedade elevada o reduzam, coexistindo uma interação aditiva desfavorável ($A \times B$) entre uso passivo e alta ansiedade.}
+    \end{exampleblock}
+
+    \vspace{4pt}
+
+    \begin{alertblock}{Demarcação de Rigor Epistemológico}
+        Trata-se de um estudo sobre coorte observacional (alunos não foram alocados compulsoriamente a tratamentos). Portanto, as estimativas fatoriais medem \textbf{associações ajustadas robustas}, e não causalidade clínica direta.
+    \end{alertblock}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 4: Estrutura Experimental 2^3 r
+% ------------------------------------------------------------------------------
+\begin{frame}{3. Estrutura Experimental $2^3 r$ e Variável de Resposta}
+    \begin{columns}[T]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Definição da Unidade e Resposta}
+                \begin{itemize}\setlength{\itemsep}{6pt}
+                    \item \textbf{Unidade Experimental:} Aluno individual (\texttt{Student\_ID} único).
+                    \item \textbf{Variável Resposta:}
+                    $$\Delta \text{GPA} = \text{GPA}_{\text{pós-semestre}} - \text{GPA}_{\text{pré-semestre}}$$
+                    \item \textbf{Vantagem Analítica:} Mede a evolução marginal de cada estudante, controlando a linha de base individual.
+                    \item \textbf{Escala:} GPAs contidos em $[0.0, 4.0]$.
+                \end{itemize}
+            \end{block}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Fatores e Codificação Matricial ($\pm 1$)}
+                \centering \small
+                \begin{tabular}{lll}
+                    \toprule
+                    \textbf{Fator} & \textbf{Nível $-1$} & \textbf{Nível $+1$} \\
+                    \midrule
+                    \textbf{A: Uso de IA} & Ativo (tutoria) & Passivo (\textit{copy/direct}) \\
+                    \textbf{B: Ansiedade} & Baixa ($\le Q_2$) & Alta ($> Q_2=4$) \\
+                    \textbf{C: Estudo Trad.} & Baixo ($\le Q_2$) & Alto ($> Q_2=10,91\text{h}$) \\
+                    \bottomrule
+                \end{tabular}
+            \end{block}
+
+            \begin{exampleblock}{Projeto Fatorial Completo}
+                \begin{itemize}
+                    \item $k = 3$ fatores $\implies 2^3 = 8$ combinações experimentais.
+                    \item Dicotomização pela mediana amostral de STEM Junior.
+                \end{itemize}
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 5: Auditoria de Integridade e Viabilidade Amostral (Quadro Nativo LaTeX)
+% ------------------------------------------------------------------------------
+\begin{frame}{4. Auditoria de Integridade e Viabilidade Amostral}
+    \begin{columns}[T]
+        \begin{column}{0.50\textwidth}
+            \begin{block}{Quadro de Auditoria de Sanidade da Base}
+                \centering \small
+                \begin{tabular}{lcc}
+                    \toprule
+                    \textbf{Checagem de Qualidade} & \textbf{Ocorrências} & \textbf{Status} \\
+                    \midrule
+                    Identificadores (\texttt{ID}) duplicados & $0$ & \cmark\ \textbf{OK} \\
+                    Campos críticos ausentes/\textit{NaN} & $0$ & \cmark\ \textbf{OK} \\
+                    GPA fora do limite $[0.0, 4.0]$ & $0$ & \cmark\ \textbf{OK} \\
+                    Valores negativos de estudo tradicional & $0$ & \cmark\ \textbf{OK} \\
+                    Escala de ansiedade válida $[1, 10]$ & $0$ falhas & \cmark\ \textbf{OK} \\
+                    \bottomrule
+                \end{tabular}
+            \end{block}
+
+            \begin{block}{Composição do Fluxo Amostral}
+                \centering
+                \begin{tikzpicture}[node distance=0.6cm, auto, scale=0.8, every node/.style={transform shape}]
+                    \node[draw=DarkBlue, fill=SoftBlue!40, rounded corners, inner sep=4pt, align=center] (b1) {\textbf{Base Total}\\\small $N = 50.000$};
+                    \node[draw=DarkBlue, fill=SoftBlue!70, rounded corners, inner sep=4pt, right=of b1, align=center] (b2) {\textbf{STEM + Junior}\\\small $n = 3.279$};
+                    \node[draw=DarkBlue, fill=MedBlue, text=white, rounded corners, inner sep=4pt, right=of b2, align=center] (b3) {\textbf{Células $2^3$}\\\small $n = 3.279$};
+                    \draw[-{Stealth[length=2mm]}, thick, DarkBlue] (b1) -- (b2);
+                    \draw[-{Stealth[length=2mm]}, thick, DarkBlue] (b2) -- (b3);
+                \end{tikzpicture}
+            \end{block}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Garantia de Réplicas ($r \ge 10$)}
+                \begin{itemize}\setlength{\itemsep}{5pt}
+                    \item Exigência regulamentar da disciplina: $r \ge 10$ réplicas por vértice.
+                    \item \textbf{Célula com menor tamanho:} $n_{\min} = 181$ alunos (célula \texttt{ab}).
+                    \item \textbf{Célula com maior tamanho:} $n_{\max} = 667$ alunos (célula \texttt{c}).
+                    \item Margem estatística: mais de \textbf{18 vezes superior} ao limiar obrigatório.
+                \end{itemize}
+            \end{block}
+
+            \begin{exampleblock}{Conclusão de Viabilidade}
+                Base íntegra, sem descarte artificial de dados e com elevado poder de precisão estimativa.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 6: Primeiros Resultados do 2^3: Cubo Fatorial e Células
+% ------------------------------------------------------------------------------
+\begin{frame}{5. Primeiros Resultados: Espaço Fatorial e Células de Yates}
+    \begin{columns}[c]
+        \begin{column}{0.48\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/01_cubo_fatorial_resposta.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 1:} Cubo fatorial $2^3$ com médias de $\Delta \text{GPA}$ por vértice e contagens $n$.}
+        \end{column}
+
+        \begin{column}{0.50\textwidth}
+            \begin{block}{Médias e Desvios nas 8 Células de Yates}
+                \centering \scriptsize
+                \begin{tabular}{lcccr}
+                    \toprule
+                    \textbf{Ensaio} & \textbf{Código} & \textbf{Perfil} & $n$ & \textbf{Média $\pm$ DP} \\
+                    \midrule
+                    \texttt{(1)} & $(-1,-1,-1)$ & Ativo, Ans. Baixa, Est. Baixo & 442 & $-0.021 \pm 0.20$ \\
+                    \texttt{a}   & $(+1,-1,-1)$ & Pass., Ans. Baixa, Est. Baixo & 225 & $-0.089 \pm 0.21$ \\
+                    \texttt{b}   & $(-1,+1,-1)$ & Ativo, Ans. Alta, Est. Baixo  & 382 & $-0.029 \pm 0.20$ \\
+                    \texttt{ab}  & $(+1,+1,-1)$ & Pass., Ans. Alta, Est. Baixo  & 181 & $\mathbf{-0.134} \pm 0.22$ \\
+                    \texttt{c}   & $(-1,-1,+1)$ & Ativo, Ans. Baixa, Est. Alto  & 667 & $\mathbf{+0.104} \pm 0.21$ \\
+                    \texttt{ac}  & $(+1,-1,+1)$ & Pass., Ans. Baixa, Est. Alto  & 371 & $+0.024 \pm 0.19$ \\
+                    \texttt{bc}  & $(-1,+1,+1)$ & Ativo, Ans. Alta, Est. Alto   & 614 & $+0.088 \pm 0.20$ \\
+                    \texttt{abc} & $(+1,+1,+1)$ & Pass., Ans. Alta, Est. Alto   & 397 & $+0.028 \pm 0.20$ \\
+                    \bottomrule
+                \end{tabular}
+            \end{block}
+            \vspace{-2pt}
+            \begin{itemize}\scriptsize
+                \item \textbf{Pior Vértice:} \texttt{ab} ($\mu = -0.134$): passivo + ansioso + estudo baixo.
+                \item \textbf{Melhor Vértice:} \texttt{c} ($\mu = +0.104$): ativo + não ansioso + estudo alto.
+            \end{itemize}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 7: ECDF Individual — Fator A
+% ------------------------------------------------------------------------------
+\begin{frame}{6. Distribuição Acumulada (ECDF): Modo de Uso de IA (Fator A)}
+    \begin{columns}[c]
+        \begin{column}{0.52\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/02_ecdf_fator_A.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 2A:} Função de distribuição cumulativa empírica para o Fator A.}
+        \end{column}
+
+        \begin{column}{0.46\textwidth}
+            \begin{block}{Explicação Objetiva do Caso A}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Curva Vermelha tracejada (Passivo):} Notavelmente deslocada para a esquerda em relação à azul (Ativo).
+                    \item \textbf{Maior Fração Negativa:} Estudantes com uso passivo apresentam maior probabilidade de variação negativa de notas ($\Delta \text{GPA} < 0$).
+                    \item \textbf{Sem Assimetrias Artificiais:} A transição contínua da curva comprova que não há descontinuidades ou outliers extremos induzindo o efeito médio.
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Conclusão Exploratória}
+                O uso passivo associa-se a um risco sistematicamente maior de decréscimo acadêmico.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 8: ECDF Individual — Fator B
+% ------------------------------------------------------------------------------
+\begin{frame}{7. Distribuição Acumulada (ECDF): Ansiedade em Provas (Fator B)}
+    \begin{columns}[c]
+        \begin{column}{0.52\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/02_ecdf_fator_B.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 2B:} Função de distribuição cumulativa empírica para o Fator B.}
+        \end{column}
+
+        \begin{column}{0.46\textwidth}
+            \begin{block}{Explicação Objetiva do Caso B}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Curva Laranja tracejada (Alta Ansiedade):} Situa-se discretamente à esquerda da curva verde (Baixa Ansiedade).
+                    \item \textbf{Efeito Moderado:} A proximidade entre as duas distribuições reflete que a ansiedade isolada tem magnitude moderada sobre o GPA geral.
+                    \item \textbf{Comportamento nos Extremos:} As caudas inferiores e superiores mantêm-se alinhadas, com dispersão homogênea.
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Conclusão Exploratória}
+                Ansiedade alta é desfavorável, mas sua ação ganha relevância clínica quando combinada aos outros hábitos.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 9: ECDF Individual — Fator C
+% ------------------------------------------------------------------------------
+\begin{frame}{8. Distribuição Acumulada (ECDF): Estudo Tradicional (Fator C)}
+    \begin{columns}[c]
+        \begin{column}{0.52\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/02_ecdf_fator_C.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 2C:} Função de distribuição cumulativa empírica para o Fator C.}
+        \end{column}
+
+        \begin{column}{0.46\textwidth}
+            \begin{block}{Explicação Objetiva do Caso C}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Dominância Estocástica Nítida:} A curva ciano (Estudo Alto) está inteiramente à direita da curva marrom (Estudo Baixo).
+                    \item \textbf{Proteção Universal:} Para praticamente qualquer nível de corte de $\Delta \text{GPA}$, a proporção de alunos aprovados ou em ascensão é superior no nível $+1$.
+                    \item \textbf{Força Preditiva:} Visualmente o fator com maior separação distributiva entre níveis.
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Conclusão Exploratória}
+                O estudo autônomo tradicional atua como uma alavanca primária na progressão de rendimento.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 10: Efeito Principal do Fator C
+% ------------------------------------------------------------------------------
+\begin{frame}{9. Efeito Principal do Fator C: Horas de Estudo Tradicional}
+    \begin{columns}[c]
+        \begin{column}{0.50\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_efeito_principal_C.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 3C:} Média balanceada de $\Delta \text{GPA}$ para o Fator C (Estudo).}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Quantificação do Contraste}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item $\bar{y}_{C-} = +0.160$ (Estudo Baixo $\le 10,91\text{h}$)
+                    \item $\bar{y}_{C+} = +0.281$ (Estudo Alto $> 10,91\text{h}$)
+                    \item \textbf{Efeito Fatorial:} $\mathbf{\Delta = +0.1211}$
+                    \item \textbf{Intervalo de Confiança 95\%:} $[+0.106; +0.136]$
+                    \item \textbf{Estatística de Teste:} $|t|_{\text{HC3}} = 15.35$ ($p < 0.0001$)
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Interpretação Substantiva}
+                É o \textbf{fator de maior relevância prática}: estudantes que dedicam horas de estudo acima da mediana obtêm, em média, um ganho líquido de $+0.121$ pontos no GPA.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 11: Efeito Principal do Fator A
+% ------------------------------------------------------------------------------
+\begin{frame}{10. Efeito Principal do Fator A: Modo de Uso de IA}
+    \begin{columns}[c]
+        \begin{column}{0.50\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_efeito_principal_A.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 3A:} Média balanceada de $\Delta \text{GPA}$ para o Fator A (Modo IA).}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Quantificação do Contraste}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item $\bar{y}_{A-} = +0.259$ (Uso Ativo / Tutoria)
+                    \item $\bar{y}_{A+} = +0.182$ (Uso Passivo / Geração Direta)
+                    \item \textbf{Efeito Fatorial:} $\mathbf{\Delta = -0.0772}$
+                    \item \textbf{Intervalo de Confiança 95\%:} $[-0.092; -0.062]$
+                    \item \textbf{Estatística de Teste:} $|t|_{\text{HC3}} = 9.78$ ($p < 0.0001$)
+                \end{itemize}
+            \end{block}
+            \begin{alertblock}{Interpretação Substantiva}
+                O uso passivo acarreta uma \textbf{penalidade severa de $-0.077$ pontos no GPA} frente ao uso ativo, demonstrando que delegar o raciocínio prejudica a consolidação do aprendizado.
+            \end{alertblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 12: Efeito Principal do Fator B
+% ------------------------------------------------------------------------------
+\begin{frame}{11. Efeito Principal do Fator B: Ansiedade em Provas}
+    \begin{columns}[c]
+        \begin{column}{0.50\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_efeito_principal_B.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 3B:} Média balanceada de $\Delta \text{GPA}$ para o Fator B (Ansiedade).}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Quantificação do Contraste}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item $\bar{y}_{B-} = +0.229$ (Ansiedade Baixa $\le 4$)
+                    \item $\bar{y}_{B+} = +0.212$ (Ansiedade Alta $> 4$)
+                    \item \textbf{Efeito Fatorial:} $\mathbf{\Delta = -0.0175}$
+                    \item \textbf{Intervalo de Confiança 95\%:} $[-0.033; -0.002]$
+                    \item \textbf{Estatística de Teste:} $|t|_{\text{HC3}} = 2.22$ ($p = 0.0268$)
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Interpretação Substantiva}
+                A alta ansiedade reduz o ganho acadêmico em $-0.018$ pontos. Embora moderado, o efeito é estatisticamente significativo com $p < 0.05$.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 13: Interação A x B (Uso de IA x Ansiedade)
+% ------------------------------------------------------------------------------
+\begin{frame}{12. Interação Fatorial $A \times B$: Modo de Uso de IA $\times$ Ansiedade}
+    \begin{columns}[c]
+        \begin{column}{0.52\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_interacao_AB.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 4A:} Médias balanceadas para a interação $A \times B$.}
+        \end{column}
+
+        \begin{column}{0.46\textwidth}
+            \begin{alertblock}{Quebra de Paralelismo (Sinergia Negativa)}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Efeito de Interação:} $\mathbf{-0.0226}$ ($p = 0.0041$).
+                    \item \textbf{IC 95\% Bootstrap:} $[-0.038; -0.007]$ (exclui o zero).
+                    \item As duas retas \textbf{não são paralelas}:
+                    \begin{itemize}\footnotesize
+                        \item Em ansiedade baixa, passar de ativo para passivo reduz $\Delta \text{GPA}$ em $-0.066$.
+                        \item Em ansiedade alta, a queda se agrava para $\mathbf{-0.088}$.
+                    \end{itemize}
+                \end{itemize}
+            \end{alertblock}
+            \begin{exampleblock}{Implicação Prática}
+                O uso passivo da IA é \textbf{especialmente danoso} para estudantes com alto estresse avaliativo.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 14: Interação A x C (Uso de IA x Estudo Tradicional)
+% ------------------------------------------------------------------------------
+\begin{frame}{13. Interação Fatorial $A \times C$: Modo de Uso de IA $\times$ Estudo Tradicional}
+    \begin{columns}[c]
+        \begin{column}{0.52\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_interacao_AC.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 4B:} Médias balanceadas para a interação $A \times C$.}
+        \end{column}
+
+        \begin{column}{0.46\textwidth}
+            \begin{block}{Paralelismo Estrito (Efeitos Aditivos)}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Efeito de Interação:} $\mathbf{-0.0005}$ ($p = 0.9507$).
+                    \item \textbf{IC 95\% Bootstrap:} $[-0.016; +0.015]$ (centrado em zero).
+                    \item \textbf{Retas Rigorosamente Paralelas:}
+                    \begin{itemize}\footnotesize
+                        \item A distância entre a reta de estudo alto e estudo baixo é exatamente $+0.121$ tanto no uso ativo quanto no uso passivo.
+                    \end{itemize}
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Implicação Prática}
+                O benefício do estudo tradicional atua de modo independente e universal: mesmo que o aluno use IA, estudar de forma tradicional protege o GPA na mesma magnitude.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 15: Interação B x C (Ansiedade x Estudo Tradicional)
+% ------------------------------------------------------------------------------
+\begin{frame}{14. Interação Fatorial $B \times C$: Ansiedade $\times$ Estudo Tradicional}
+    \begin{columns}[c]
+        \begin{column}{0.52\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_interacao_BC.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 4C:} Médias balanceadas para a interação $B \times C$.}
+        \end{column}
+
+        \begin{column}{0.46\textwidth}
+            \begin{block}{Independência Estatística}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Efeito de Interação:} $\mathbf{+0.0107}$ ($p = 0.1766$).
+                    \item \textbf{IC 95\% Bootstrap:} $[-0.005; +0.026]$ (inclui o zero).
+                    \item \textbf{Retas Paralelas:}
+                    \begin{itemize}\footnotesize
+                        \item A inclinação em relação ao nível de ansiedade é homogênea entre os estratos de estudo.
+                    \end{itemize}
+                    \item Interação tripla $A \times B \times C = +0.0102$ ($p = 0.2178$) também sem significância.
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Implicação Prática}
+                O estudo tradicional não depende do nível de ansiedade para produzir efeitos positivos de rendimento.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 16: Diagnósticos de Pressupostos (Quadro Nativo LaTeX)
+% ------------------------------------------------------------------------------
+\begin{frame}{15. Diagnósticos Estatísticos dos Pressupostos do Modelo}
+    \begin{columns}[T]
+        \begin{column}{0.54\textwidth}
+            \begin{block}{Quadro de Auditoria dos Pressupostos}
+                \centering \small
+                \begin{tabular}{lcc}
+                    \toprule
+                    \textbf{Premissa / Teste} & \textbf{Estatística / $p$} & \textbf{Status / Conduta} \\
+                    \midrule
+                    Shapiro-Wilk (Resíduos) & $W = 0.999$, $p = 0.115$ & \cmark\ \textbf{Normalidade OK} \\
+                    Levene (Dados Brutos) & $F = 4.73$, $p = 2.6 \times 10^{-5}$ & \tmark\ \textbf{Heterocedástico} \\
+                    Levene (Réplicas Boot.) & $p = 0.044$ & \tmark\ \textbf{Boot. Estratificado} \\
+                    Estabilidade de Sementes & Máx $\text{DP} = 0.0056$ & \cmark\ \textbf{Convergência OK} \\
+                    GPA Prévio Balanceado & ANOVA $F=0.82$, $p > 0.05$ & \cmark\ \textbf{Sem viés inicial} \\
+                    \bottomrule
+                \end{tabular}
+            \end{block}
+
+            \begin{block}{Tratamento da Heterocedasticidade}
+                \begin{itemize}\footnotesize
+                    \item \textbf{Erro-Padrão Sanduíche HC3 (MacKinnon-White):} Ajuste que penaliza resíduos de alta alavancagem em amostras desiguais.
+                    \item \textbf{Bootstrap Estratificado:} $B=5.000$ iterações por célula.
+                \end{itemize}
+            \end{block}
+        \end{column}
+
+        \begin{column}{0.44\textwidth}
+            \begin{exampleblock}{Comentário Metodológico}
+                \begin{itemize}\small
+                    \item Os resíduos atendem à normalidade ($p = 0.115$).
+                    \item A heterocedasticidade observada ($p < 0.001$) reflete a natureza comportamental humana dos dados.
+                    \item O emprego de HC3 e Bootstrap garante que nenhum $p$-valor ou intervalo de confiança esteja subestimado.
+                \end{itemize}
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 16: Evidência Gráfica dos Diagnósticos
+% ------------------------------------------------------------------------------
+\begin{frame}{16. Evidência Gráfica dos Diagnósticos do Modelo}
+    \begin{columns}[c]
+        \begin{column}{0.58\textwidth}
+            \centering
+            \includegraphics[width=\textwidth, height=0.40\textheight, keepaspectratio]{figuras/04_diagnosticos_residuos.png}
+            \vspace{-2pt}
+            {\tiny \textbf{Figura 4D:} QQ-plot, resíduos $\times$ ajustados e histograma dos resíduos.}
+
+            \vspace{4pt}
+            \includegraphics[width=\textwidth, height=0.36\textheight, keepaspectratio]{figuras/07_diagnosticos_resumo.png}
+        \end{column}
+
+        \begin{column}{0.40\textwidth}
+            \begin{block}{Leitura dos Painéis}
+                \begin{itemize}\setlength{\itemsep}{4pt}\footnotesize
+                    \item \textbf{QQ-plot e histograma:} resíduos próximos da diagonal, com cauda esquerda mais pesada.
+                    \item \textbf{Resíduos $\times$ ajustados:} dispersão vertical desigual entre as células, indicando variância não constante.
+                    \item \textbf{Resumo:} verde = atendido; laranja = problema detectado e tratado.
+                \end{itemize}
+            \end{block}
+            \begin{exampleblock}{Conduta Adotada}
+                \footnotesize A heterocedasticidade é tratada com \textbf{HC3} e \textbf{bootstrap estratificado} ($B=5.000$), que não dependem de normalidade estrita nem de variância constante.
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 17: Inferência Robusta HC3 e Gráfico de Pareto
+% ------------------------------------------------------------------------------
+\begin{frame}{17. Inferência Consolidada e Diagrama de Pareto}
+    \begin{columns}[c]
+        \begin{column}{0.48\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/06_pareto_hc3.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 5:} Diagrama de Pareto com estatísticas $|t|$ sob erros robustos HC3.}
+        \end{column}
+
+        \begin{column}{0.50\textwidth}
+            \begin{block}{Tabela de Inferência Consolidada}
+                \centering \scriptsize
+                \begin{tabular}{lcccc}
+                    \toprule
+                    \textbf{Termo} & \textbf{Efeito} & \textbf{IC 95\% Boot.} & $|t|_{\text{HC3}}$ & \textbf{Significativo?} \\
+                    \midrule
+                    \textbf{C (Estudo)} & $\mathbf{+0.1211}$ & $[+0.106; +0.136]$ & $15.35$ & \cmark\ \textbf{Sim} ($p < 10^{-4}$) \\
+                    \textbf{A (Uso IA)} & $\mathbf{-0.0772}$ & $[-0.092; -0.062]$ & $9.78$ & \cmark\ \textbf{Sim} ($p < 10^{-4}$) \\
+                    \textbf{AB (IA $\times$ Ans.)} & $\mathbf{-0.0226}$ & $[-0.038; -0.007]$ & $2.87$ & \cmark\ \textbf{Sim} ($p = 0.0041$) \\
+                    \textbf{B (Ansiedade)} & $\mathbf{-0.0175}$ & $[-0.033; -0.002]$ & $2.22$ & \cmark\ \textbf{Sim} ($p = 0.0268$) \\
+                    \midrule
+                    \textbf{BC} & $+0.0107$ & $[-0.005; +0.026]$ & $1.35$ & Não ($p = 0.1766$) \\
+                    \textbf{ABC} & $+0.0102$ & $[-0.006; +0.025]$ & $1.23$ & Não ($p = 0.2178$) \\
+                    \textbf{AC} & $-0.0005$ & $[-0.016; +0.015]$ & $0.06$ & Não ($p = 0.9507$) \\
+                    \bottomrule
+                \end{tabular}
+            \end{block}
+            \vspace{-2pt}
+            \begin{itemize}\scriptsize
+                \item Linha tracejada em $|t| = 1.96$ define o limiar de significância a 5\%.
+                \item Quatro termos ($C, A, AB, B$) superam o corte com ampla margem.
+            \end{itemize}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 18: Sensibilidade aos Cortes — Efeitos
+% ------------------------------------------------------------------------------
+\begin{frame}{18. Sensibilidade dos Efeitos a Regras de Corte Alternativas}
+    \begin{columns}[c]
+        \begin{column}{0.54\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/07_sensibilidade_efeitos.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 6A:} Estabilidade dos contrastes fatoriais sob diferentes regras de corte.}
+        \end{column}
+
+        \begin{column}{0.44\textwidth}
+            \begin{block}{Explicação Objetiva da Estabilidade}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Concordância de Sinais:} As três regras (Mediana, $<Q_1$ vs $\ge Q_3$ e $\le Q_1$ vs $\ge Q_3$) mantêm rigorosamente os mesmos sinais e hierarquias.
+                    \item \textbf{Efeito C Intensificado:} No corte por quartis extremos, o contraste de estudo salta de $+0.12$ para $\mathbf{+0.195}$, confirmando correlação positiva contínua.
+                    \item \textbf{Interação $A \times B$ Robusta:} Mantém-se negativa e significativa em todos os cenários.
+                \end{itemize}
+            \end{block}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 19: Sensibilidade — Tamanho Amostral
+% ------------------------------------------------------------------------------
+\begin{frame}{19. Sensibilidade: Amostra Efetiva por Regra de Dicotomização}
+    \begin{columns}[c]
+        \begin{column}{0.54\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{figuras/07_sensibilidade_amostra.png}
+            \vspace{-4pt}
+            {\tiny \textbf{Figura 6B:} Volume amostral disponível em cada regra de inclusão.}
+        \end{column}
+
+        \begin{column}{0.44\textwidth}
+            \begin{block}{Justificativa da Regra Principal}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Corte por Mediana ($Q_2$):} Utiliza $100\%$ da coorte elegível ($n = 3.279$ estudantes).
+                    \item \textbf{Cortes Extremos por Quartis:} Descartam a faixa intermediária (50\% a 74\% da amostra), reduzindo $n$ para $848$ ou $1.101$.
+                    \item \textbf{Poder Estatístico:} A regra da mediana foi mantida como protocolo principal para evitar perda desnecessária de graus de liberdade.
+                \end{itemize}
+            \end{block}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 20: Avaliação Conclusiva da Hipótese Geral
+% ------------------------------------------------------------------------------
+\begin{frame}{20. Avaliação Preliminar da Hipótese Geral do Estudo}
+    \begin{exampleblock}{Confronto Direto: Hipótese Geral vs. Evidências Empíricas}
+        \centering \small
+        \begin{tabular}{p{4.8cm}cp{5.2cm}}
+            \toprule
+            \textbf{Postulado na Hipótese Geral} & \textbf{Resultado} & \textbf{Evidência Experimental} \\
+            \midrule
+            Maior estudo tradicional eleva $\Delta \text{GPA}$ & \cmark\ \textbf{Corroborado} & Efeito $C = +0.1211$ ($p < 0.0001$, dominante). \\
+            Uso ativo supera o uso passivo de IA & \cmark\ \textbf{Corroborado} & Efeito $A = -0.0772$ ($p < 0.0001$, penalidade). \\
+            Alta ansiedade reduz o $\Delta \text{GPA}$ & \cmark\ \textbf{Corroborado} & Efeito $B = -0.0175$ ($p = 0.0268$, moderado). \\
+            Interação adversa entre passivo e ansiedade & \cmark\ \textbf{Corroborado} & Efeito $AB = -0.0226$ ($p = 0.0041$, sinergia). \\
+            Interações com estudo tradicional ($AC, BC$) & \textbf{Não detectado} & Retas estritamente paralelas ($p > 0.17$). \\
+            \bottomrule
+        \end{tabular}
+    \end{exampleblock}
+
+    \vspace{4pt}
+
+    \begin{block}{Síntese Preliminar}
+        A hipótese geral foi \textbf{plenamente corroborada} em suas proposições ativas. A independência de $C$ em relação a $A$ e $B$ traz uma contribuição original: o estudo tradicional protege os estudantes independentemente do seu perfil emocional ou tecnológico.
+    \end{block}
+\end{frame}
+
+% ------------------------------------------------------------------------------
+% Slide 21: Aprimoramentos para a Versão Final e Encerramento
+% ------------------------------------------------------------------------------
+\begin{frame}{21. Aprimoramentos para a Versão Final e Encerramento}
+    \begin{columns}[T]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Ajustes Analíticos Planejados}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item \textbf{Modelagem Contínua / ANCOVA:}
+                    \begin{itemize}\footnotesize
+                        \item Incluir as horas contínuas de estudo e ansiedade sem dicotomização.
+                        \item Controlar explicitamente pelo $\text{GPA}_{\text{pré}}$ exato para medir ganhos marginais.
+                    \end{itemize}
+                    \item \textbf{Subpopulações STEM:}
+                    \begin{itemize}\footnotesize
+                        \item Investigar estabilidade entre subáreas (Engenharias vs Ciência da Computação).
+                    \end{itemize}
+                \end{itemize}
+            \end{block}
+
+            \begin{block}{Recomendações Práticas}
+                \begin{itemize}\footnotesize
+                    \item Desenvolver oficinas instrucionais para conscientizar discentes sobre uso ativo (depuração) e desestimular a cópia passiva.
+                \end{itemize}
+            \end{block}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{Etapa Final (Peso: 50\%)}
+                \begin{itemize}\setlength{\itemsep}{5pt}\small
+                    \item Elaboração do \textbf{Relatório Final em LaTeX} no template oficial da disciplina.
+                    \item Incorporação dos feedbacks recebidos nesta apresentação preliminar.
+                    \item Redação do artigo científico completo (Introdução, Fundamentação, Métodos, Resultados Experimentais, Discussão e Conclusão).
+                \end{itemize}
+            \end{exampleblock}
+
+            \vspace{6pt}
+            \begin{center}
+                \textbf{\large Muito Obrigado!} \\
+                \medskip
+                {\small Dúvidas e Considerações da Banca} \\
+                \medskip
+                \textit{PPGCC --- UFOP}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\end{document}

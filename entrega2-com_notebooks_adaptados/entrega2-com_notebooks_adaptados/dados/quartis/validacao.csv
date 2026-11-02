@@ -1,0 +1,6 @@
+checagem,ok,detalhe
+"Shapiro dos resíduos (p>0,05)",True,p=0.807
+"Levene entre células (p>0,05)",True,p=0.119
+"Estabilidade entre seeds (DP<0,01)",True,máx DP=0.0055
+Concordância IC × ANOVA bruta (sem 'fraco'),False,B
+"Pre_GPA balanceado (ANOVA p>0,05)",True,ver balanceamento
